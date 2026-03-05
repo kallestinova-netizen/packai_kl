@@ -1,0 +1,9 @@
+.env
+data/bot.db
+data/backups/
+logs/
+__pycache__/
+*.pyc
+.venv/
+venv/
+assets/fonts/*.ttf

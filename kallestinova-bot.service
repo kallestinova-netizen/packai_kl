@@ -1,0 +1,15 @@
+[Unit]
+Description=PACKAI Kallestinova Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/packai_kallestinova_bot
+ExecStart=/opt/packai_kallestinova_bot/venv/bin/python main.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

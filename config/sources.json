@@ -1,0 +1,9 @@
+{
+  "rss": [
+    {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/"},
+    {"name": "Product Hunt", "url": "https://www.producthunt.com/feed"},
+    {"name": "Hacker News", "url": "https://hnrss.org/frontpage"},
+    {"name": "The Hustle", "url": "https://thehustle.co/feed/"},
+    {"name": "Social Media Today", "url": "https://www.socialmediatoday.com/feed/"}
+  ]
+}
