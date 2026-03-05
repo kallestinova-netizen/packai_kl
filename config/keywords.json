@@ -1,0 +1,5 @@
+{
+  "primary": ["AI marketing", "AI automation", "content automation", "personal branding AI", "Telegram bot business", "AI content creation"],
+  "secondary": ["ChatGPT", "Claude", "Anthropic", "OpenAI", "Midjourney", "HeyGen", "Higgsfield", "startup marketing", "founder branding"],
+  "exclude": ["crypto", "NFT", "gambling", "adult"]
+}

@@ -1,0 +1,76 @@
+{
+  "howto": [
+    {
+      "title": "Как создать AI-бота для контент-маркетинга за 7 дней",
+      "tags": ["AI", "Telegram bot", "automation"],
+      "used": false
+    },
+    {
+      "title": "5 промптов, которые заменят контент-менеджера",
+      "tags": ["prompts", "AI", "content"],
+      "used": false
+    },
+    {
+      "title": "Как упаковать экспертизу в систему: пошаговый гайд",
+      "tags": ["branding", "system", "expertise"],
+      "used": false
+    },
+    {
+      "title": "AI-автоматизация контента: что работает в 2025",
+      "tags": ["AI", "automation", "trends"],
+      "used": false
+    },
+    {
+      "title": "Telegram-бот vs контент-менеджер: сравнение в цифрах",
+      "tags": ["Telegram", "ROI", "comparison"],
+      "used": false
+    },
+    {
+      "title": "Как провести стратегическую сессию за 1.5 часа",
+      "tags": ["strategy", "session", "methodology"],
+      "used": false
+    },
+    {
+      "title": "Персональный брендинг для технических фаундеров",
+      "tags": ["branding", "founders", "tech"],
+      "used": false
+    },
+    {
+      "title": "Как выбрать AI-инструмент для маркетинга",
+      "tags": ["AI tools", "marketing", "guide"],
+      "used": false
+    }
+  ],
+  "personal": [
+    {
+      "title": "Почему я создала PACKAI — история продукта",
+      "type": "reality",
+      "used": false
+    },
+    {
+      "title": "Первый клиент: как всё началось с Кирилла",
+      "type": "case",
+      "used": false
+    },
+    {
+      "title": "Что я поняла за 10 лет в маркетинге",
+      "type": "expert",
+      "used": false
+    },
+    {
+      "title": "Система > разовая услуга: мой главный принцип",
+      "type": "values",
+      "used": false
+    },
+    {
+      "title": "Как я использую свой продукт каждый день — реалити",
+      "type": "reality",
+      "used": false
+    },
+    {
+      "title": "3 ошибки при упаковке экспертизы",
+      "type": "expert",
+      "used": false
+    }
+  ]
+}

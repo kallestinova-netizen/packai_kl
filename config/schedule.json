@@ -1,0 +1,12 @@
+{
+  "timezone": "Asia/Novosibirsk",
+  "jobs": {
+    "news_parse": "07:00",
+    "morning_digest": "08:00",
+    "howto_post": {"days": ["tue", "thu", "sat"], "time": "15:00"},
+    "personal_post": {"days": ["mon", "wed", "fri"], "time": "15:00"},
+    "publish_reminder": "12:00",
+    "evening_summary": "20:00",
+    "daily_backup": "03:00"
+  }
+}
