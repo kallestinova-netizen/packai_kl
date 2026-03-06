@@ -72,6 +72,18 @@ def load_schedule() -> dict:
     return load_json_config("schedule.json")
 
 
+def load_content_plan() -> list:
+    path = DATA_DIR / "content-plan.json"
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_content_plan(data: list):
+    path = DATA_DIR / "content-plan.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 def load_topic_bank() -> dict:
     path = DATA_DIR / "topic-bank.json"
     with open(path, "r", encoding="utf-8") as f:
