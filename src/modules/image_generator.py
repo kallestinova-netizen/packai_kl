@@ -1,6 +1,6 @@
+import base64
 import io
 import logging
-import re
 from datetime import datetime
 from pathlib import Path
 
@@ -22,13 +22,15 @@ DALLE_SIZES = {
     "stories": "1024x1792",    # portrait
 }
 
-# Final output sizes
-OUTPUT_SIZES = {
-    "linkedin": (1200, 627),
-    "telegram": (1280, 720),
-    "threads": (1080, 1080),
-    "stories": (1080, 1920),
+# Format specs: output size + title max chars
+FORMATS = {
+    "linkedin": {"width": 1200, "height": 627, "title_max_chars": 60},
+    "telegram": {"width": 1280, "height": 720, "title_max_chars": 50},
+    "threads": {"width": 1080, "height": 1080, "title_max_chars": 45},
+    "stories": {"width": 1080, "height": 1920, "title_max_chars": 40},
 }
+
+PADDING = 60
 
 _client = None
 
@@ -53,20 +55,22 @@ def _load_font(font_name: str, size: int) -> ImageFont.FreeTypeFont:
             return ImageFont.load_default()
 
 
-def _extract_title(text: str) -> str:
-    """Extract a short title from the post text (first meaningful line, max 80 chars)."""
+def _extract_title(text: str, max_chars: int = 60) -> str:
+    """Extract a short title from the post text (first meaningful line)."""
     lines = text.strip().split("\n")
     for line in lines:
         stripped = line.strip()
         if stripped and not stripped.startswith("#") and len(stripped) > 10:
-            if len(stripped) > 80:
-                return stripped[:77] + "..."
+            if len(stripped) > max_chars:
+                # Cut at last space within limit
+                cut = stripped[:max_chars].rsplit(" ", 1)[0]
+                return cut if len(cut) > 10 else stripped[:max_chars - 3] + "..."
             return stripped
-    return lines[0].strip()[:80] if lines else "PACK AI"
+    return lines[0].strip()[:max_chars] if lines else "PACK AI"
 
 
 def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
-    """Wrap text to fit within max_width pixels."""
+    """Wrap text to fit within max_width pixels. Max 3 lines."""
     words = text.split()
     lines = []
     current_line = ""
@@ -85,7 +89,7 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[
     if current_line:
         lines.append(current_line)
 
-    return lines[:5]  # Max 5 lines
+    return lines[:3]  # Max 3 lines per spec
 
 
 def _overlay_branding(
@@ -95,46 +99,38 @@ def _overlay_branding(
 ) -> Image.Image:
     """Apply brand overlay: PACK AI tag, title text, watermark."""
     brand = load_brand()
-    output_size = OUTPUT_SIZES[image_format]
+    fmt = FORMATS[image_format]
+    width, height = fmt["width"], fmt["height"]
 
     # Resize background to target
-    img = bg_image.resize(output_size, Image.LANCZOS)
+    img = bg_image.resize((width, height), Image.LANCZOS).convert("RGBA")
     draw = ImageDraw.Draw(img)
-
-    width, height = output_size
-    padding = 40
 
     # Color values
     accent_green = brand["colors"]["accent_green"]
     dark_text = brand["colors"]["dark_text"]
 
     # --- PACK AI tag (green pill, top-left) ---
-    tag_font_size = max(20, int(height * 0.03))
-    tag_font = _load_font("Manrope-Bold.ttf", tag_font_size)
-
+    tag_font = _load_font("Manrope-Bold.ttf", 20)
     tag_text = "PACK AI"
     tag_bbox = tag_font.getbbox(tag_text)
-    tag_w = tag_bbox[2] - tag_bbox[0] + 30
+    tag_w = tag_bbox[2] - tag_bbox[0] + 32
     tag_h = tag_bbox[3] - tag_bbox[1] + 16
+    tag_x, tag_y = PADDING, PADDING
 
-    tag_x = padding
-    tag_y = padding
-
-    # Draw pill background
     draw.rounded_rectangle(
         [tag_x, tag_y, tag_x + tag_w, tag_y + tag_h],
-        radius=tag_h // 2,
+        radius=20,
         fill=accent_green,
     )
-    # Draw tag text
     draw.text(
-        (tag_x + 15, tag_y + 8),
+        (tag_x + 16, tag_y + 8),
         tag_text,
         fill=dark_text,
         font=tag_font,
     )
 
-    # --- Title text (center area) ---
+    # --- Title text (bottom third) ---
     heading_sizes = brand["typography"]["heading"]["sizes"]
     size_key = {
         "linkedin": "linkedin_1200x627",
@@ -146,60 +142,54 @@ def _overlay_branding(
     title_font_size = heading_sizes.get(size_key, 48)
     title_font = _load_font("Unbounded-Bold.ttf", title_font_size)
 
-    max_text_width = width - padding * 2 - 40
+    max_text_width = width - PADDING * 2
     wrapped = _wrap_text(title, title_font, max_text_width)
 
-    # Calculate text block height
-    line_height = title_font_size + 8
+    # Line height = font_size * 1.3
+    line_height = int(title_font_size * 1.3)
     text_block_height = len(wrapped) * line_height
 
-    # Position: vertically centered, slightly above middle
-    text_y = (height - text_block_height) // 2 - int(height * 0.05)
+    # Position: bottom third, with padding from bottom
+    y_start = height - text_block_height - PADDING - 20
 
-    # Draw semi-transparent background behind text
+    # Semi-transparent background behind title for readability
     if wrapped:
-        bg_rect_y1 = text_y - 20
-        bg_rect_y2 = text_y + text_block_height + 20
-        bg_rect_x1 = padding
-        bg_rect_x2 = width - padding
+        bg_rect_y1 = y_start - 20
+        bg_rect_y2 = y_start + text_block_height + 20
+        bg_rect_x1 = PADDING - 20
+        bg_rect_x2 = width - PADDING + 20
 
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         overlay_draw = ImageDraw.Draw(overlay)
         overlay_draw.rounded_rectangle(
             [bg_rect_x1, bg_rect_y1, bg_rect_x2, bg_rect_y2],
             radius=16,
-            fill=(245, 245, 240, 200),  # warm white, semi-transparent
+            fill=(245, 245, 240, 200),
         )
-        img = Image.alpha_composite(img.convert("RGBA"), overlay)
+        img = Image.alpha_composite(img, overlay)
         draw = ImageDraw.Draw(img)
 
     for i, line in enumerate(wrapped):
-        y = text_y + i * line_height
-        # Center horizontally
-        line_bbox = title_font.getbbox(line)
-        line_w = line_bbox[2] - line_bbox[0]
-        x = (width - line_w) // 2
-        draw.text((x, y), line, fill=dark_text, font=title_font)
+        y = y_start + i * line_height
+        draw.text((PADDING, y), line, fill=dark_text, font=title_font)
 
-    # --- Watermark: packai.io (bottom-right) ---
-    watermark_font_size = max(16, int(height * 0.025))
-    watermark_font = _load_font("Manrope-Regular.ttf", watermark_font_size)
+    # --- Watermark: packai.io (bottom-right, 40% opacity) ---
+    watermark_font = _load_font("Manrope-Regular.ttf", 16)
     watermark_text = "packai.io"
 
     wm_bbox = watermark_font.getbbox(watermark_text)
     wm_w = wm_bbox[2] - wm_bbox[0]
-    wm_x = width - padding - wm_w
-    wm_y = height - padding - (wm_bbox[3] - wm_bbox[1])
+    wm_h = wm_bbox[3] - wm_bbox[1]
+    wm_x = width - PADDING - wm_w
+    wm_y = height - PADDING
 
-    draw.text((wm_x, wm_y), watermark_text, fill=dark_text, font=watermark_font)
+    # 40% opacity: alpha = 102 out of 255
+    draw.text((wm_x, wm_y), watermark_text, fill=(26, 26, 26, 102), font=watermark_font)
 
-    # Convert back to RGB for saving
-    if img.mode == "RGBA":
-        final = Image.new("RGB", img.size, (245, 245, 240))
-        final.paste(img, mask=img.split()[3])
-        return final
-
-    return img
+    # Convert to RGB for PNG saving
+    final = Image.new("RGB", img.size, (245, 245, 240))
+    final.paste(img, mask=img.split()[3])
+    return final
 
 
 async def _generate_background(topic: str, image_format: str) -> Image.Image:
@@ -208,9 +198,9 @@ async def _generate_background(topic: str, image_format: str) -> Image.Image:
         image_prompt_template = load_prompt("image_prompt.txt")
     except FileNotFoundError:
         image_prompt_template = (
-            "Create a clean, minimalist background image for a social media post. "
-            "Light warm tones (#F5F5F0 base), abstract geometric shapes, "
-            "subtle green (#A8E847) accents. No text. Topic: {topic}"
+            "Создай фоновое изображение для поста в социальных сетях. "
+            "Минималистичный стиль, тёплый светлый фон, лаймово-зелёные акценты. "
+            "БЕЗ текста. Тема: {topic}"
         )
 
     prompt = image_prompt_template.replace("{topic}", topic[:200])
@@ -225,7 +215,6 @@ async def _generate_background(topic: str, image_format: str) -> Image.Image:
         response_format="b64_json",
     )
 
-    import base64
     image_data = base64.b64decode(response.data[0].b64_json)
     return Image.open(io.BytesIO(image_data))
 
@@ -233,13 +222,14 @@ async def _generate_background(topic: str, image_format: str) -> Image.Image:
 async def generate_post_image(
     content_id: int,
     post_text: str,
-    image_format: str = "linkedin",
+    image_format: str = "telegram",
     post_number: int = 0,
 ) -> str:
     """Generate a branded image for a post. Returns file path."""
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
-    title = _extract_title(post_text)
+    fmt = FORMATS.get(image_format, FORMATS["telegram"])
+    title = _extract_title(post_text, max_chars=fmt["title_max_chars"])
     logger.info(f"Generating image: format={image_format}, title={title[:40]}...")
 
     # Generate DALL-E background
@@ -248,9 +238,9 @@ async def generate_post_image(
     # Apply brand overlay
     final_image = _overlay_branding(bg_image, title, image_format)
 
-    # Save
-    date_str = datetime.now().strftime("%Y%m%d")
-    post_num = post_number if post_number else content_id
+    # Save with naming: {date}_{post_number}_{format}.png
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    post_num = f"{post_number:02d}" if post_number else f"{content_id:02d}"
     filename = f"{date_str}_{post_num}_{image_format}.png"
     filepath = IMAGES_DIR / filename
 

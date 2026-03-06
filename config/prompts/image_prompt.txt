@@ -1,15 +1,18 @@
-Create a clean, minimalist background image for a professional social media post about AI and marketing.
+Создай фоновое изображение для поста в социальных сетях.
 
-Style requirements:
-- Light warm background (#F5F5F0 base color)
-- Abstract geometric shapes: soft circles, lines, gradients
-- Subtle green accent elements (#A8E847 lime green)
-- Modern, tech-forward aesthetic
-- Lots of white space
-- NO text, NO letters, NO words, NO logos
-- Soft shadows, depth through layering
-- Professional business feel mixed with creative energy
+СТИЛЬ:
+- Минималистичный, чистый, современный
+- Тёплый светлый фон (бежевый/кремовый оттенок)
+- Лаймово-зелёные (#A8E847) геометрические акценты: линии, круги, абстрактные формы
+- Flat design с subtle градиентами
+- Много воздуха и пустого пространства
+- БЕЗ текста на картинке (текст будет наложен отдельно)
+- БЕЗ фотографий людей
+- Абстрактные технологичные элементы: точки, линии, сетки, градиенты
 
-Topic context for mood/color inspiration: {topic}
+ТЕМА ПОСТА: {topic}
 
-Important: The image must have NO text at all. It is a background only — text will be added later.
+ВАЖНО:
+- Оставь достаточно пустого пространства в нижней трети для наложения текста
+- Основные визуальные элементы — в верхней части
+- Фон не должен быть слишком насыщенным — текст должен читаться поверх
