@@ -2,6 +2,7 @@ import json
 import logging
 from anthropic import AsyncAnthropic
 from src.config import ANTHROPIC_API_KEY, load_prompt, load_profile
+from src.utils.text_cleaner import clean_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ async def generate_post(
         messages=[{"role": "user", "content": user_message}],
     )
 
-    return response.content[0].text
+    return clean_markdown(response.content[0].text)
 
 
 async def generate_news_post(title: str, summary: str, source: str, format_name: str = "linkedin") -> str:
@@ -90,7 +91,7 @@ async def edit_post(original_text: str, edit_instructions: str, format_name: str
         messages=[{"role": "user", "content": user_message}],
     )
 
-    return response.content[0].text
+    return clean_markdown(response.content[0].text)
 
 
 async def classify_voice_message(text: str) -> dict:
@@ -169,7 +170,7 @@ async def generate_news_summary(title: str, description: str) -> str:
             }
         ],
     )
-    return response.content[0].text
+    return clean_markdown(response.content[0].text)
 
 
 def _get_rubric_instruction(rubric: str) -> str:
