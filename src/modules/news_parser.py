@@ -1,3 +1,4 @@
+import json
 import logging
 import asyncio
 import xml.etree.ElementTree as ET
@@ -5,16 +6,40 @@ import xml.etree.ElementTree as ET
 import aiohttp
 from Levenshtein import ratio as levenshtein_ratio
 
-from src.config import load_sources, load_keywords
+try:
+    import feedparser
+    HAS_FEEDPARSER = True
+except ImportError:
+    HAS_FEEDPARSER = False
+
+from src.config import load_sources, load_keywords, load_prompt
 from src.db.queries import save_news, get_todays_news
-from src.modules.content_generator import generate_news_summary
+from src.modules.content_generator import generate_news_summary, filter_news_with_ai
 
 logger = logging.getLogger(__name__)
 
 
 def parse_rss_xml(xml_text: str) -> list[dict]:
-    """Parse RSS/Atom XML into a list of entries."""
+    """Parse RSS/Atom XML using feedparser, fallback to manual XML parsing."""
     entries = []
+
+    # Try feedparser first if available
+    if HAS_FEEDPARSER:
+        feed = feedparser.parse(xml_text)
+        if feed.entries:
+            for entry in feed.entries[:10]:
+                title = getattr(entry, "title", "").strip()
+                link = getattr(entry, "link", "").strip()
+                description = ""
+                if hasattr(entry, "summary"):
+                    description = entry.summary.strip()
+                elif hasattr(entry, "description"):
+                    description = entry.description.strip()
+                if title:
+                    entries.append({"title": title, "link": link, "description": description})
+            return entries
+
+    # Fallback: manual XML parsing
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
@@ -96,6 +121,8 @@ async def parse_all_feeds() -> list:
         feeds = await asyncio.gather(*tasks)
 
         for src, entries in zip(sources["rss"], feeds):
+            is_priority = src.get("priority", False)
+
             for entry in entries:
                 title = entry.get("title", "").strip()
                 description = entry.get("description", "").strip()
@@ -111,13 +138,33 @@ async def parse_all_feeds() -> list:
                     continue
 
                 entry_score = score_entry(title, description, keywords)
+
+                # Boost priority sources
+                if is_priority:
+                    entry_score += 5
+
                 existing_titles.append(title)
 
+                # Use AI filter via news_filter.txt prompt
                 try:
-                    summary = await generate_news_summary(title, description)
+                    ai_filter = await filter_news_with_ai(title, description, src["name"])
+                    ai_score = ai_filter.get("score", 0)
+
+                    if not ai_filter.get("relevant", False) or ai_score < 50:
+                        logger.info(f"AI filtered out (score={ai_score}): {title}")
+                        continue
+
+                    entry_score = ai_score
+                    summary = ai_filter.get("summary_ru", "")
+                    if not summary:
+                        summary = await generate_news_summary(title, description)
                 except Exception as e:
-                    logger.error(f"Failed to summarize {title}: {e}")
-                    summary = description[:300]
+                    logger.error(f"AI filter failed for {title}: {e}")
+                    try:
+                        summary = await generate_news_summary(title, description)
+                    except Exception as e2:
+                        logger.error(f"Failed to summarize {title}: {e2}")
+                        summary = description[:300]
 
                 await save_news(
                     title=title,

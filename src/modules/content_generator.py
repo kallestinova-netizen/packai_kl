@@ -123,6 +123,36 @@ async def classify_voice_message(text: str) -> dict:
     return json.loads(result_text)
 
 
+async def filter_news_with_ai(title: str, description: str, source: str) -> dict:
+    """Use AI to filter news relevance using news_filter.txt prompt."""
+    try:
+        filter_prompt = load_prompt("news_filter.txt")
+    except FileNotFoundError:
+        return {"relevant": True, "score": 50}
+
+    user_message = (
+        f"Источник: {source}\n"
+        f"Заголовок: {title}\n"
+        f"Описание: {description}"
+    )
+
+    response = await _get_client().messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=500,
+        system=filter_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    )
+
+    result_text = response.content[0].text.strip()
+    if result_text.startswith("```"):
+        result_text = result_text.split("```")[1]
+        if result_text.startswith("json"):
+            result_text = result_text[4:]
+        result_text = result_text.strip()
+
+    return json.loads(result_text)
+
+
 async def generate_news_summary(title: str, description: str) -> str:
     response = await _get_client().messages.create(
         model="claude-sonnet-4-20250514",
