@@ -7,3 +7,4 @@ __pycache__/
 .venv/
 venv/
 assets/fonts/*.ttf
+data/images/

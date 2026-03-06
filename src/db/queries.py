@@ -210,6 +210,49 @@ async def update_content_text(content_id: int, text: str):
         await db.close()
 
 
+# --- Generated Images ---
+
+async def save_generated_image(
+    content_id: int,
+    format_name: str,
+    file_path: str,
+    dalle_prompt: str = "",
+) -> int:
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "INSERT INTO generated_images (content_id, format, file_path, dalle_prompt) VALUES (?, ?, ?, ?)",
+            (content_id, format_name, file_path, dalle_prompt),
+        )
+        await db.commit()
+        return cursor.lastrowid
+    finally:
+        await db.close()
+
+
+async def get_image_by_id(image_id: int):
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM generated_images WHERE id = ?", (image_id,)
+        )
+        return await cursor.fetchone()
+    finally:
+        await db.close()
+
+
+async def get_images_for_content(content_id: int):
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM generated_images WHERE content_id = ? ORDER BY created_at DESC",
+            (content_id,),
+        )
+        return await cursor.fetchall()
+    finally:
+        await db.close()
+
+
 # --- Activity Log ---
 
 async def log_activity(action: str, command: str = None, details: str = None):
