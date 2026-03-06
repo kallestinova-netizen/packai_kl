@@ -12,7 +12,7 @@ from src.bot.callbacks import (
     get_news_keyboard,
     get_config_confirm_keyboard,
 )
-from src.modules.content_generator import generate_post, classify_voice_message
+from src.modules.content_generator import generate_post, classify_voice_message, edit_post
 from src.modules.transcriber import transcribe_voice
 from src.modules.news_parser import parse_all_feeds
 from src.db.queries import (

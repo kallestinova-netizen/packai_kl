@@ -1,9 +1,16 @@
 {
   "rss": [
-    {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/"},
-    {"name": "Product Hunt", "url": "https://www.producthunt.com/feed"},
-    {"name": "Hacker News", "url": "https://hnrss.org/frontpage"},
-    {"name": "The Hustle", "url": "https://thehustle.co/feed/"},
-    {"name": "Social Media Today", "url": "https://www.socialmediatoday.com/feed/"}
+    {"name": "MarTech", "url": "https://martech.org/feed/", "priority": true},
+    {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/", "priority": true},
+    {"name": "TechCrunch Startups", "url": "https://techcrunch.com/category/startups/feed/", "priority": true},
+    {"name": "Y Combinator Blog", "url": "https://www.ycombinator.com/blog/rss/", "priority": true},
+    {"name": "vc.ru Marketing", "url": "https://vc.ru/marketing/rss", "priority": true},
+    {"name": "vc.ru AI", "url": "https://vc.ru/ai/rss", "priority": true},
+    {"name": "Sostav.ru", "url": "https://www.sostav.ru/rss/", "priority": true},
+    {"name": "Cossa.ru", "url": "https://www.cossa.ru/rss/all/", "priority": true},
+    {"name": "Business Insider", "url": "https://www.businessinsider.com/sai/rss", "priority": true},
+    {"name": "Product Hunt", "url": "https://www.producthunt.com/feed", "priority": false},
+    {"name": "Hacker News", "url": "https://hnrss.org/frontpage", "priority": false},
+    {"name": "Social Media Today", "url": "https://www.socialmediatoday.com/feed/", "priority": false}
   ]
 }
