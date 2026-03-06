@@ -43,6 +43,16 @@ CREATE TABLE IF NOT EXISTS activity_log (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS generated_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content_id INTEGER,
+    format TEXT,
+    file_path TEXT,
+    dalle_prompt TEXT,
+    status TEXT DEFAULT 'generated',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS config_changes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_path TEXT,

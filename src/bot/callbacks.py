@@ -6,13 +6,18 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+from aiogram.types import FSInputFile
+
 from src.modules.content_generator import generate_post, generate_news_post, edit_post
+from src.modules.image_generator import generate_post_image
 from src.db.queries import (
     get_content_by_id,
     get_news_by_id,
     update_content_status,
     update_content_text,
     save_generated_content,
+    save_generated_image,
+    get_image_by_id,
     log_activity,
     save_config_change,
     confirm_config_change,
@@ -38,8 +43,11 @@ def get_format_keyboard(content_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="📰 Блог", callback_data=f"fmt:blog:{content_id}"),
             ],
             [
+                InlineKeyboardButton(text="🖼 Картинка", callback_data=f"img:select:{content_id}"),
                 InlineKeyboardButton(text="✅ Одобрить", callback_data=f"act:approve:{content_id}"),
                 InlineKeyboardButton(text="✏️ Редактировать", callback_data=f"act:edit:{content_id}"),
+            ],
+            [
                 InlineKeyboardButton(text="🔄 Заново", callback_data=f"act:regen:{content_id}"),
                 InlineKeyboardButton(text="❌ Отклонить", callback_data=f"act:reject:{content_id}"),
             ],
@@ -248,3 +256,148 @@ async def on_config_callback(callback: CallbackQuery):
         await callback.answer()
         text = old_value if len(old_value) < 4000 else old_value[:4000] + "\n..."
         await callback.message.answer(f"📄 Текущее содержимое:\n\n{text}")
+
+
+# --- Image callbacks ---
+
+def get_image_format_keyboard(content_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📝 LinkedIn", callback_data=f"img:linkedin:{content_id}"),
+                InlineKeyboardButton(text="💬 Telegram", callback_data=f"img:telegram:{content_id}"),
+            ],
+            [
+                InlineKeyboardButton(text="🧵 Threads", callback_data=f"img:threads:{content_id}"),
+                InlineKeyboardButton(text="📱 Stories", callback_data=f"img:stories:{content_id}"),
+            ],
+        ]
+    )
+
+
+def get_image_action_keyboard(image_id: int, content_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Использовать", callback_data=f"imgact:use:{image_id}"),
+                InlineKeyboardButton(text="🔄 Заново", callback_data=f"imgact:regen:{image_id}:{content_id}"),
+            ],
+        ]
+    )
+
+
+@router.callback_query(F.data.startswith("img:"))
+async def on_image_callback(callback: CallbackQuery):
+    parts = callback.data.split(":")
+    _, action, content_id_str = parts[0], parts[1], parts[2]
+    content_id = int(content_id_str)
+
+    if action == "select":
+        # Show image format selection
+        await callback.answer()
+        await callback.message.answer(
+            "🖼 Выбери формат картинки:",
+            reply_markup=get_image_format_keyboard(content_id),
+        )
+        return
+
+    # action is the image format (linkedin, telegram, threads, stories)
+    image_format = action
+    await callback.answer(f"🖼 Генерирую картинку {image_format}...")
+
+    content = await get_content_by_id(content_id)
+    if not content:
+        await callback.message.answer("❌ Контент не найден.")
+        return
+
+    try:
+        file_path = await generate_post_image(
+            content_id=content_id,
+            post_text=content["text"],
+            image_format=image_format,
+        )
+
+        image_id = await save_generated_image(
+            content_id=content_id,
+            format_name=image_format,
+            file_path=file_path,
+        )
+
+        await log_activity("image_gen", f"img:{image_format}", f"content_id={content_id}, image_id={image_id}")
+
+        keyboard = get_image_action_keyboard(image_id, content_id)
+        photo = FSInputFile(file_path)
+        format_labels = {
+            "linkedin": "📝 LinkedIn (1200x627)",
+            "telegram": "💬 Telegram (1280x720)",
+            "threads": "🧵 Threads (1080x1080)",
+            "stories": "📱 Stories (1080x1920)",
+        }
+        label = format_labels.get(image_format, image_format)
+
+        await callback.message.answer_photo(
+            photo=photo,
+            caption=f"🖼 {label}",
+            reply_markup=keyboard,
+        )
+    except Exception as e:
+        logger.error(f"Image generation failed: {e}")
+        await callback.message.answer(f"❌ Ошибка генерации картинки: {e}")
+
+
+@router.callback_query(F.data.startswith("imgact:"))
+async def on_image_action_callback(callback: CallbackQuery):
+    parts = callback.data.split(":")
+    action = parts[1]
+
+    if action == "use":
+        image_id = int(parts[2])
+        image = await get_image_by_id(image_id)
+        if not image:
+            await callback.message.answer("❌ Картинка не найдена.")
+            return
+        await log_activity("image_approve", "imgact:use", f"image_id={image_id}")
+        await callback.answer("✅ Картинка сохранена!")
+        await callback.message.answer(f"✅ Картинка сохранена: {image['file_path']}")
+
+    elif action == "regen":
+        image_id = int(parts[2])
+        content_id = int(parts[3])
+
+        image = await get_image_by_id(image_id)
+        if not image:
+            await callback.message.answer("❌ Картинка не найдена.")
+            return
+
+        await callback.answer("🔄 Перегенерирую картинку...")
+
+        content = await get_content_by_id(content_id)
+        if not content:
+            await callback.message.answer("❌ Контент не найден.")
+            return
+
+        try:
+            file_path = await generate_post_image(
+                content_id=content_id,
+                post_text=content["text"],
+                image_format=image["format"],
+            )
+
+            new_image_id = await save_generated_image(
+                content_id=content_id,
+                format_name=image["format"],
+                file_path=file_path,
+            )
+
+            await log_activity("image_regen", "imgact:regen", f"image_id={image_id} -> {new_image_id}")
+
+            keyboard = get_image_action_keyboard(new_image_id, content_id)
+            photo = FSInputFile(file_path)
+            await callback.message.answer_photo(
+                photo=photo,
+                caption="🔄 Новая версия картинки",
+                reply_markup=keyboard,
+            )
+        except Exception as e:
+            logger.error(f"Image regeneration failed: {e}")
+            await callback.message.answer(f"❌ Ошибка перегенерации: {e}")
