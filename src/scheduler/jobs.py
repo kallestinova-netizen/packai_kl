@@ -50,9 +50,8 @@ async def _send_morning_digest(bot: Bot, chat_id: int):
             keyboard = get_news_keyboard(item["id"])
             await bot.send_message(
                 chat_id,
-                f"📰 **{i}. {item['title']}**\n\n{item['summary']}\n\n🔗 {item['source']}",
+                f"📰 {i}. {item['title']}\n\n{item['summary']}\n\n🔗 {item['source']}",
                 reply_markup=keyboard,
-                parse_mode="Markdown",
             )
     else:
         await bot.send_message(chat_id, "📰 Новостей по вашим темам сегодня не найдено.")
@@ -69,9 +68,8 @@ async def _send_morning_digest(bot: Bot, chat_id: int):
         keyboard = get_format_keyboard(content_id)
         await bot.send_message(
             chat_id,
-            f"📋 **ПОСТ ДНЯ:**\n\n{plan_post['full_text']}",
+            f"📋 ПОСТ ДНЯ:\n\n{plan_post['full_text']}",
             reply_markup=keyboard,
-            parse_mode="Markdown",
         )
 
     yesterday = await get_yesterday_stats()
@@ -120,9 +118,8 @@ async def job_howto_post(bot: Bot):
         for admin_id in ADMIN_USER_IDS:
             await bot.send_message(
                 admin_id,
-                f"🔧 **How-To Lab**\n\n{post_text}",
+                f"🔧 How-To Lab\n\n{post_text}",
                 reply_markup=keyboard,
-                parse_mode="Markdown",
             )
 
         await log_activity("scheduled", "howto_post", f"topic={topic['title']}, content_id={content_id}")
@@ -169,9 +166,8 @@ async def job_personal_post(bot: Bot):
         for admin_id in ADMIN_USER_IDS:
             await bot.send_message(
                 admin_id,
-                f"👤 **Personal Brand**\n\n{post_text}",
+                f"👤 Personal Brand\n\n{post_text}",
                 reply_markup=keyboard,
-                parse_mode="Markdown",
             )
 
         await log_activity("scheduled", "personal_post", f"topic={topic['title']}, content_id={content_id}")

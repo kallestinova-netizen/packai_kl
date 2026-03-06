@@ -43,7 +43,7 @@ async def cmd_start(message: Message):
     text = (
         "👋 Привет! Я — AI-ассистент PACKAI.\n\n"
         "Помогаю создавать контент для LinkedIn, Telegram, Threads и блога.\n\n"
-        "📋 **Команды:**\n"
+        "📋 КОМАНДЫ:\n"
         "☀️ /morning — утренняя сводка\n"
         "✍️ /create — создать пост (+ текст или голосовое)\n"
         "📈 /trend — тренды (скоро)\n"
@@ -51,7 +51,7 @@ async def cmd_start(message: Message):
         "📅 /plan — контент-план\n\n"
         "💡 Можешь просто отправить текст или голосовое — я сгенерирую пост!"
     )
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text)
 
 
 @router.message(Command("morning"))
@@ -66,16 +66,15 @@ async def cmd_morning(message: Message):
         await parse_all_feeds()
         news = await get_todays_news(limit=3)
 
-    news_text = "📰 **НОВОСТИ ДНЯ:**\n\n"
+    news_text = "📰 НОВОСТИ ДНЯ:\n\n"
     if news:
         for i, item in enumerate(news, 1):
-            news_text += f"{i}. **{item['title']}**\n"
+            news_text += f"{i}. {item['title']}\n"
             news_text += f"   📌 {item['summary'][:200]}\n"
             news_text += f"   🔗 {item['source']}\n\n"
             await message.answer(
-                f"📰 **{i}. {item['title']}**\n\n{item['summary']}\n\n🔗 Источник: {item['source']}",
+                f"📰 {i}. {item['title']}\n\n{item['summary']}\n\n🔗 Источник: {item['source']}",
                 reply_markup=get_news_keyboard(item["id"]),
-                parse_mode="Markdown",
             )
     else:
         await message.answer("📰 Новостей по вашим темам сегодня не найдено.")
@@ -91,9 +90,8 @@ async def cmd_morning(message: Message):
             text=plan_post["full_text"],
         )
         await message.answer(
-            f"📋 **ПОСТ ДНЯ** (из контент-плана):\n\n{plan_post['full_text']}",
+            f"📋 ПОСТ ДНЯ (из контент-плана):\n\n{plan_post['full_text']}",
             reply_markup=get_format_keyboard(content_id),
-            parse_mode="Markdown",
         )
     else:
         await message.answer("📋 На сегодня постов в контент-плане нет.")
@@ -113,8 +111,7 @@ async def cmd_create(message: Message):
     if not text:
         await message.answer(
             "✍️ Отправь текст после команды /create или просто голосовое сообщение.\n\n"
-            "Пример: `/create AI-бот заменил контент-менеджера: кейс из практики`",
-            parse_mode="Markdown",
+            "Пример: /create AI-бот заменил контент-менеджера: кейс из практики",
         )
         return
 
@@ -160,19 +157,19 @@ async def cmd_stats(message: Message):
     month_rejected = month["rejected"] if month else 0
 
     text = (
-        "📊 **СТАТИСТИКА**\n\n"
-        f"**За неделю:**\n"
+        "📊 СТАТИСТИКА\n\n"
+        f"ЗА НЕДЕЛЮ:\n"
         f"  Создано: {week_total}\n"
         f"  ✅ Одобрено: {week_approved}\n"
         f"  ❌ Отклонено: {week_rejected}\n\n"
-        f"**За месяц:**\n"
+        f"ЗА МЕСЯЦ:\n"
         f"  Создано: {month_total}\n"
         f"  ✅ Одобрено: {month_approved}\n"
         f"  ❌ Отклонено: {month_rejected}\n\n"
     )
 
     if by_rubric:
-        text += "**По рубрикам (месяц):**\n"
+        text += "ПО РУБРИКАМ (месяц):\n"
         rubric_labels = {
             "newsroom": "📰 AI Newsroom",
             "howto": "🔧 How-To Lab",
@@ -185,7 +182,7 @@ async def cmd_stats(message: Message):
         text += "\n"
 
     if by_format:
-        text += "**По форматам (месяц):**\n"
+        text += "ПО ФОРМАТАМ (месяц):\n"
         format_labels = {
             "linkedin": "📝 LinkedIn",
             "telegram": "💬 Telegram",
@@ -196,7 +193,7 @@ async def cmd_stats(message: Message):
             label = format_labels.get(row["format"], row["format"] or "—")
             text += f"  {label}: {row['count']}\n"
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text)
 
 
 @router.message(Command("plan"))
@@ -208,16 +205,16 @@ async def cmd_plan(message: Message):
         await message.answer("📅 Контент-план пуст. Добавьте посты через базу данных.")
         return
 
-    text = "📅 **КОНТЕНТ-ПЛАН**\n\n"
+    text = "📅 КОНТЕНТ-ПЛАН\n\n"
     status_icons = {"published": "✅", "ready": "⏳", "missed": "❌", "draft": "📝"}
 
     for post in posts:
         icon = status_icons.get(post["status"], "⏳")
         date_str = post["scheduled_date"] or "—"
         rubric = post["rubric"] or ""
-        text += f"{icon} **{date_str}** | {rubric} | {post['title']}\n"
+        text += f"{icon} {date_str} | {rubric} | {post['title']}\n"
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text)
 
 
 # --- Voice message handler ---
@@ -233,7 +230,7 @@ async def handle_voice(message: Message):
     audio_data = file_bytes.read()
 
     transcript = await transcribe_voice(audio_data)
-    await message.answer(f"📝 Распознано:\n\n_{transcript}_", parse_mode="Markdown")
+    await message.answer(f"📝 Распознано:\n\n{transcript}")
 
     # Classify: command or content?
     classification = await classify_voice_message(transcript)
@@ -280,10 +277,9 @@ async def _handle_voice_command(message: Message, classification: dict):
     keyboard = get_config_confirm_keyboard(change_id)
     await message.answer(
         f"🔧 Поняла! Хочешь изменить:\n\n"
-        f"📁 Файл: `{file_path}`\n"
+        f"📁 Файл: {file_path}\n"
         f"✏️ Изменение: {summary}\n",
         reply_markup=keyboard,
-        parse_mode="Markdown",
     )
 
 
@@ -387,7 +383,7 @@ async def _handle_rollback(message: Message):
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(old_value)
         await log_activity("rollback", "rollback", f"file={file_path}, change_id={change['id']}")
-        await message.answer(f"↩️ Откатила изменение в файле `{file_path}`.", parse_mode="Markdown")
+        await message.answer(f"↩️ Откатила изменение в файле {file_path}.")
     except Exception as e:
         logger.error(f"Rollback failed: {e}")
         await message.answer(f"❌ Ошибка при откате: {e}")

@@ -110,9 +110,8 @@ async def on_format_callback(callback: CallbackQuery):
     label = format_labels.get(format_name, format_name)
 
     await callback.message.answer(
-        f"**{label}**\n\n{new_text}",
+        f"{label}\n\n{new_text}",
         reply_markup=keyboard,
-        parse_mode="Markdown",
     )
 
 
@@ -237,7 +236,7 @@ async def on_config_callback(callback: CallbackQuery):
         await confirm_config_change(change_id)
         await log_activity("config_change", "cfg:confirm", f"change_id={change_id}, file={file_path}")
         await callback.answer("✅ Изменения применены!")
-        await callback.message.answer(f"✅ Файл `{file_path}` обновлён.")
+        await callback.message.answer(f"✅ Файл {file_path} обновлён.")
 
     elif action == "cancel":
         await log_activity("config_cancel", "cfg:cancel", f"change_id={change_id}")
@@ -248,4 +247,4 @@ async def on_config_callback(callback: CallbackQuery):
         old_value = change["old_value"]
         await callback.answer()
         text = old_value if len(old_value) < 4000 else old_value[:4000] + "\n..."
-        await callback.message.answer(f"📄 Текущее содержимое:\n\n```\n{text}\n```", parse_mode="Markdown")
+        await callback.message.answer(f"📄 Текущее содержимое:\n\n{text}")
