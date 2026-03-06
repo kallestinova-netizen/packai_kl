@@ -58,7 +58,12 @@ async def generate_post(
         messages=[{"role": "user", "content": user_message}],
     )
 
-    return clean_markdown(response.content[0].text)
+    text = clean_markdown(response.content[0].text)
+
+    if format_name == "telegram":
+        text = _ensure_telegram_signature(text)
+
+    return text
 
 
 async def generate_news_post(title: str, summary: str, source: str, format_name: str = "linkedin") -> str:
@@ -171,6 +176,35 @@ async def generate_news_summary(title: str, description: str) -> str:
         ],
     )
     return clean_markdown(response.content[0].text)
+
+
+TELEGRAM_SIGNATURE = "Натали |PRO жизнь в маркетинге"
+
+
+def _ensure_telegram_signature(text: str) -> str:
+    """Add Telegram signature before hashtags if not already present."""
+    if TELEGRAM_SIGNATURE in text:
+        return text
+
+    lines = text.rstrip().split("\n")
+
+    # Find where hashtags start at the end
+    hashtag_start = len(lines)
+    for i in range(len(lines) - 1, -1, -1):
+        stripped = lines[i].strip()
+        if stripped and all(word.startswith("#") for word in stripped.split()):
+            hashtag_start = i
+        elif stripped:
+            break
+
+    if hashtag_start < len(lines):
+        # Insert signature between text and hashtags
+        before = "\n".join(lines[:hashtag_start]).rstrip()
+        after = "\n".join(lines[hashtag_start:])
+        return f"{before}\n\n{TELEGRAM_SIGNATURE}\n\n{after}"
+    else:
+        # No hashtags found, append signature at the end
+        return f"{text.rstrip()}\n\n{TELEGRAM_SIGNATURE}"
 
 
 def _get_rubric_instruction(rubric: str) -> str:
