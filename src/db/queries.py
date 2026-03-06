@@ -110,6 +110,50 @@ async def update_plan_status(plan_id: int, status: str):
         await db.close()
 
 
+async def sync_content_plan_from_json(posts: list):
+    """Load content plan posts from JSON into the content_plan table.
+
+    Uses post_number as unique key — inserts new posts, updates existing ones.
+    """
+    db = await get_db()
+    try:
+        for post in posts:
+            cursor = await db.execute(
+                "SELECT id FROM content_plan WHERE post_number = ?",
+                (post["post_number"],),
+            )
+            existing = await cursor.fetchone()
+            if existing:
+                await db.execute(
+                    "UPDATE content_plan SET scheduled_date = ?, title = ?, full_text = ?, rubric = ?, status = ? "
+                    "WHERE post_number = ?",
+                    (
+                        post["scheduled_date"],
+                        post["title"],
+                        post["full_text"],
+                        post["rubric"],
+                        post["status"],
+                        post["post_number"],
+                    ),
+                )
+            else:
+                await db.execute(
+                    "INSERT INTO content_plan (post_number, scheduled_date, title, full_text, rubric, status) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        post["post_number"],
+                        post["scheduled_date"],
+                        post["title"],
+                        post["full_text"],
+                        post["rubric"],
+                        post["status"],
+                    ),
+                )
+        await db.commit()
+    finally:
+        await db.close()
+
+
 # --- Generated Content ---
 
 async def save_generated_content(

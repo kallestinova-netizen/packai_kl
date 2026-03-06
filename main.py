@@ -6,8 +6,8 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.config import LOG_DIR
-from src.db.queries import init_db
+from src.config import LOG_DIR, load_content_plan
+from src.db.queries import init_db, sync_content_plan_from_json
 from src.bot.app import create_bot, create_dispatcher
 from src.scheduler.cron import setup_scheduler
 
@@ -33,6 +33,14 @@ async def main():
     logger.info("Initializing database...")
     await init_db()
     logger.info("Database initialized.")
+
+    logger.info("Syncing content plan from JSON...")
+    try:
+        content_plan = load_content_plan()
+        await sync_content_plan_from_json(content_plan)
+        logger.info(f"Content plan synced: {len(content_plan)} posts.")
+    except Exception as e:
+        logger.error(f"Failed to sync content plan: {e}")
 
     bot = create_bot()
     dp = create_dispatcher()
