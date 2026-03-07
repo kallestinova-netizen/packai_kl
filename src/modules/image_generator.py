@@ -55,18 +55,29 @@ def _load_font(font_name: str, size: int) -> ImageFont.FreeTypeFont:
             return ImageFont.load_default()
 
 
-def _extract_title(text: str, max_chars: int = 60) -> str:
-    """Extract a short title from the post text (first meaningful line)."""
+def _extract_title(text: str, max_chars: int = 60, max_words: int = 6) -> str:
+    """Extract a short title (max 5-6 words) from the post text."""
     lines = text.strip().split("\n")
+    candidate = ""
     for line in lines:
         stripped = line.strip()
         if stripped and not stripped.startswith("#") and len(stripped) > 10:
-            if len(stripped) > max_chars:
-                # Cut at last space within limit
-                cut = stripped[:max_chars].rsplit(" ", 1)[0]
-                return cut if len(cut) > 10 else stripped[:max_chars - 3] + "..."
-            return stripped
-    return lines[0].strip()[:max_chars] if lines else "PACK AI"
+            candidate = stripped
+            break
+    if not candidate:
+        candidate = lines[0].strip() if lines else "PACK AI"
+
+    # Limit to max_words significant words
+    words = candidate.split()
+    if len(words) > max_words:
+        candidate = " ".join(words[:max_words])
+
+    # Also enforce max_chars limit
+    if len(candidate) > max_chars:
+        cut = candidate[:max_chars].rsplit(" ", 1)[0]
+        candidate = cut if len(cut) > 10 else candidate[:max_chars]
+
+    return candidate
 
 
 def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
@@ -89,7 +100,7 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[
     if current_line:
         lines.append(current_line)
 
-    return lines[:3]  # Max 3 lines per spec
+    return lines[:2]  # Max 2 lines
 
 
 def _overlay_branding(
@@ -139,7 +150,8 @@ def _overlay_branding(
         "stories": "instagram_stories_1080x1920",
     }.get(image_format, "linkedin_1200x627")
 
-    title_font_size = heading_sizes.get(size_key, 48)
+    base_font_size = heading_sizes.get(size_key, 48)
+    title_font_size = int(base_font_size * 1.2)  # +20% for readability
     title_font = _load_font("Unbounded-Bold.ttf", title_font_size)
 
     max_text_width = width - PADDING * 2
@@ -164,14 +176,14 @@ def _overlay_branding(
         overlay_draw.rounded_rectangle(
             [bg_rect_x1, bg_rect_y1, bg_rect_x2, bg_rect_y2],
             radius=16,
-            fill=(245, 245, 240, 200),
+            fill=(255, 255, 255, 217),  # white plate, 85% opacity
         )
         img = Image.alpha_composite(img, overlay)
         draw = ImageDraw.Draw(img)
 
     for i, line in enumerate(wrapped):
         y = y_start + i * line_height
-        draw.text((PADDING, y), line, fill=dark_text, font=title_font)
+        draw.text((PADDING, y), line, fill="#1A1A1A", font=title_font)
 
     # --- Watermark: packai.io (bottom-right, 40% opacity) ---
     watermark_font = _load_font("Manrope-Regular.ttf", 16)
