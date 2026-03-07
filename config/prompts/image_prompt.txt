@@ -1,18 +1,12 @@
-Создай фоновое изображение для поста в социальных сетях.
+Abstract minimalist background for social media post. STRICT COLOR RULES:
+- Background: solid clean light beige #F5F5F0, NOT brown, NOT dark
+- Accent elements: ONLY bright lime green #A8E847, NO other colors
+- Elements: 2-3 simple geometric shapes maximum (circles, lines, dots)
+- Style: ultra-clean, lots of empty white space, 70% of image is empty background
+- NO complex patterns, NO gradients, NO textures, NO brown/gold/orange colors
+- NO text on image
+- Keep bottom 40% completely empty for text overlay
+- Top right area: one subtle lime green geometric element
+- Aesthetic: Apple-style minimalism, Scandinavian design, extremely clean
 
-СТИЛЬ:
-- Минималистичный, чистый, современный
-- Тёплый светлый фон (бежевый/кремовый оттенок)
-- Лаймово-зелёные (#A8E847) геометрические акценты: линии, круги, абстрактные формы
-- Flat design с subtle градиентами
-- Много воздуха и пустого пространства
-- БЕЗ текста на картинке (текст будет наложен отдельно)
-- БЕЗ фотографий людей
-- Абстрактные технологичные элементы: точки, линии, сетки, градиенты
-
-ТЕМА ПОСТА: {topic}
-
-ВАЖНО:
-- Оставь достаточно пустого пространства в нижней трети для наложения текста
-- Основные визуальные элементы — в верхней части
-- Фон не должен быть слишком насыщенным — текст должен читаться поверх
+Topic: {topic}
