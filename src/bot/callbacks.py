@@ -22,6 +22,7 @@ from src.db.queries import (
     save_config_change,
     confirm_config_change,
     get_config_change_by_id,
+    get_plan_post_number,
 )
 from src.config import load_prompt, save_prompt, load_json_config, save_json_config
 
@@ -97,10 +98,16 @@ async def on_format_callback(callback: CallbackQuery):
     original_text = content["text"]
     rubric = content["rubric"] or "situational"
 
+    # Get post_number if content originated from content plan
+    post_number = 0
+    if content["source_type"] == "plan" and content["source_id"]:
+        post_number = await get_plan_post_number(content["source_id"])
+
     new_text = await generate_post(
         topic=original_text,
         format_name=format_name,
         rubric=rubric,
+        post_number=post_number,
     )
 
     new_id = await save_generated_content(

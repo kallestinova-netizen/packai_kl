@@ -88,6 +88,19 @@ async def get_todays_plan_post():
         await db.close()
 
 
+async def get_plan_post_number(plan_id: int) -> int:
+    """Get post_number from content_plan by id."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT post_number FROM content_plan WHERE id = ?", (plan_id,)
+        )
+        row = await cursor.fetchone()
+        return row["post_number"] if row else 0
+    finally:
+        await db.close()
+
+
 async def get_all_plan_posts():
     db = await get_db()
     try:
