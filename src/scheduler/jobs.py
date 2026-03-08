@@ -6,6 +6,7 @@ from pathlib import Path
 from aiogram import Bot
 
 from src.config import ADMIN_USER_IDS, DB_PATH, BACKUP_DIR, load_topic_bank, save_topic_bank
+from src.modules.perplexity_news import fetch_news_via_perplexity
 from src.modules.news_parser import parse_all_feeds
 from src.modules.content_generator import generate_post
 from src.db.queries import (
@@ -13,6 +14,7 @@ from src.db.queries import (
     get_todays_plan_post,
     get_yesterday_stats,
     save_generated_content,
+    save_news,
     log_activity,
 )
 from src.bot.callbacks import get_news_keyboard, get_format_keyboard
@@ -21,11 +23,28 @@ logger = logging.getLogger(__name__)
 
 
 async def job_news_parse(bot: Bot):
-    """07:00 — Parse RSS feeds."""
+    """07:00 — Fetch news via Perplexity API, fallback to RSS."""
     logger.info("Running scheduled news parse")
     try:
-        results = await parse_all_feeds()
-        await log_activity("scheduled", "news_parse", f"found {len(results)} items")
+        # Try Perplexity first
+        results = await fetch_news_via_perplexity()
+
+        if results:
+            logger.info(f"Perplexity returned {len(results)} news items")
+            for item in results:
+                await save_news(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    source=item.get("source", "Perplexity"),
+                    summary=item.get("summary", ""),
+                    score=item.get("score", 50),
+                )
+            await log_activity("scheduled", "news_parse", f"perplexity: {len(results)} items")
+        else:
+            # Fallback to RSS
+            logger.info("Perplexity returned no results, falling back to RSS")
+            results = await parse_all_feeds()
+            await log_activity("scheduled", "news_parse", f"rss_fallback: {len(results)} items")
     except Exception as e:
         logger.error(f"News parse failed: {e}")
 
