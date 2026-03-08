@@ -28,6 +28,7 @@ async def generate_post(
     format_name: str = "linkedin",
     rubric: str = "situational",
     extra_context: str = "",
+    post_number: int = 0,
 ) -> str:
     system_prompt = load_prompt("system_base.txt")
     profile = load_profile()
@@ -61,7 +62,10 @@ async def generate_post(
     text = clean_markdown(response.content[0].text)
 
     if format_name == "telegram":
-        text = _ensure_telegram_signature(text)
+        text = _ensure_telegram_signature(text, post_number=post_number)
+
+    if format_name == "threads" and len(text) > 500:
+        text = text[:497].rsplit(" ", 1)[0] + "..."
 
     return text
 
@@ -179,32 +183,35 @@ async def generate_news_summary(title: str, description: str) -> str:
 
 
 TELEGRAM_SIGNATURE = "Натали |PRO жизнь в маркетинге"
+TELEGRAM_HASHTAGS = "#персональный_AI #aiмаркетинг #реалити_packai"
 
 
-def _ensure_telegram_signature(text: str) -> str:
-    """Add Telegram signature before hashtags if not already present."""
-    if TELEGRAM_SIGNATURE in text:
-        return text
-
+def _ensure_telegram_signature(text: str, post_number: int = 0) -> str:
+    """Add Telegram signature and hashtags with day number."""
+    # Strip any existing signature/hashtags that AI may have generated
     lines = text.rstrip().split("\n")
 
-    # Find where hashtags start at the end
-    hashtag_start = len(lines)
+    # Find where hashtags or signature start at the end
+    content_end = len(lines)
     for i in range(len(lines) - 1, -1, -1):
         stripped = lines[i].strip()
-        if stripped and all(word.startswith("#") for word in stripped.split()):
-            hashtag_start = i
-        elif stripped:
+        if not stripped:
+            continue
+        if all(word.startswith("#") for word in stripped.split()):
+            content_end = i
+        elif TELEGRAM_SIGNATURE in stripped:
+            content_end = i
+        else:
             break
 
-    if hashtag_start < len(lines):
-        # Insert signature between text and hashtags
-        before = "\n".join(lines[:hashtag_start]).rstrip()
-        after = "\n".join(lines[hashtag_start:])
-        return f"{before}\n\n{TELEGRAM_SIGNATURE}\n\n{after}"
-    else:
-        # No hashtags found, append signature at the end
-        return f"{text.rstrip()}\n\n{TELEGRAM_SIGNATURE}"
+    body = "\n".join(lines[:content_end]).rstrip()
+
+    # Build hashtags with day number
+    hashtags = TELEGRAM_HASHTAGS
+    if post_number:
+        hashtags += f" День {post_number}"
+
+    return f"{body}\n\n{TELEGRAM_SIGNATURE}\n\n{hashtags}"
 
 
 def _get_rubric_instruction(rubric: str) -> str:
