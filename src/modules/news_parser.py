@@ -113,7 +113,7 @@ def is_duplicate(title: str, existing_titles: list, threshold: float = 0.8) -> b
 async def parse_all_feeds() -> list:
     sources = load_sources()
     keywords = load_keywords()
-    all_scored = []
+    results = []
     existing_titles = []
 
     async with aiohttp.ClientSession() as session:
@@ -149,12 +149,10 @@ async def parse_all_feeds() -> list:
                 try:
                     ai_filter = await filter_news_with_ai(title, description, src["name"])
                     ai_score = ai_filter.get("score", 0)
-                    ai_reason = ai_filter.get("summary_ru", "no reason")
 
-                    if ai_score < 30:
-                        logger.info(
-                            f"AI rejected (score={ai_score}): {title} | reason: {ai_reason}"
-                        )
+                    if not ai_filter.get("relevant", False) or ai_score < 50:
+                        logger.info(f"AI filtered out (score={ai_score}): {title}")
+                        continue
 
                     entry_score = ai_score
                     summary = ai_filter.get("summary_ru", "")
@@ -175,26 +173,10 @@ async def parse_all_feeds() -> list:
                     summary=summary,
                     score=entry_score,
                 )
-                all_scored.append(
+                results.append(
                     {"title": title, "url": link, "source": src["name"], "summary": summary, "score": entry_score}
                 )
 
-    # Filter with threshold, auto-lower if too few results
-    all_scored.sort(key=lambda x: x["score"], reverse=True)
-
-    results = [item for item in all_scored if item["score"] >= 30]
-    if len(results) < 3:
-        logger.info(
-            f"Only {len(results)} items with score>=30, lowering threshold to 20"
-        )
-        results = [item for item in all_scored if item["score"] >= 20]
-
-    # Guarantee minimum 3 if we have any items at all
-    if len(results) < 3 and len(all_scored) >= 3:
-        logger.info(
-            f"Only {len(results)} items with score>=20, taking top 3 by score"
-        )
-        results = all_scored[:3]
-
-    logger.info(f"Parsed {len(all_scored)} total, returning {len(results)} relevant news items")
+    results.sort(key=lambda x: x["score"], reverse=True)
+    logger.info(f"Parsed {len(results)} relevant news items")
     return results[:5]
