@@ -64,9 +64,7 @@ def get_news_keyboard(news_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="💬 Telegram", callback_data=f"news:telegram:{news_id}"),
                 InlineKeyboardButton(text="🧵 Threads", callback_data=f"news:threads:{news_id}"),
                 InlineKeyboardButton(text="📰 Блог", callback_data=f"news:blog:{news_id}"),
-            ],
-            [
-                InlineKeyboardButton(text="🎬 Видео-скрипт", callback_data=f"news:video:{news_id}"),
+                InlineKeyboardButton(text="🎬 Скрипт", callback_data=f"news:video:{news_id}"),
             ],
         ]
     )
