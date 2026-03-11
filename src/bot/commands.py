@@ -62,7 +62,7 @@ async def cmd_morning(message: Message):
     await message.answer("☀️ Собираю утреннюю сводку...")
 
     # News
-    news = await get_todays_news(limit=3)
+    news = await get_todays_news(limit=5)
     if not news:
         # Try Perplexity first, fallback to RSS
         results = await fetch_news_via_perplexity()
@@ -77,7 +77,7 @@ async def cmd_morning(message: Message):
                 )
         else:
             await parse_all_feeds()
-        news = await get_todays_news(limit=3)
+        news = await get_todays_news(limit=5)
 
     news_text = "📰 НОВОСТИ ДНЯ:\n\n"
     if news:
@@ -85,8 +85,11 @@ async def cmd_morning(message: Message):
             news_text += f"{i}. {item['title']}\n"
             news_text += f"   📌 {item['summary'][:200]}\n"
             news_text += f"   🔗 {item['source']}\n\n"
+            source_line = f"🔗 Источник: {item['source']}"
+            if item.get("url"):
+                source_line += f"\n{item['url']}"
             await message.answer(
-                f"📰 {i}. {item['title']}\n\n{item['summary']}\n\n🔗 Источник: {item['source']}",
+                f"📰 {i}. {item['title']}\n\n{item['summary']}\n\n{source_line}",
                 reply_markup=get_news_keyboard(item["id"]),
             )
     else:
