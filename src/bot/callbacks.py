@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from aiogram.types import FSInputFile
 
-from src.modules.content_generator import generate_post, generate_news_post, edit_post
+from src.modules.content_generator import generate_post, generate_news_post, generate_video_script, edit_post
 from src.modules.image_generator import generate_post_image
 from src.db.queries import (
     get_content_by_id,
@@ -64,6 +64,9 @@ def get_news_keyboard(news_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="💬 Telegram", callback_data=f"news:telegram:{news_id}"),
                 InlineKeyboardButton(text="🧵 Threads", callback_data=f"news:threads:{news_id}"),
                 InlineKeyboardButton(text="📰 Блог", callback_data=f"news:blog:{news_id}"),
+            ],
+            [
+                InlineKeyboardButton(text="🎬 Видео-скрипт", callback_data=f"news:video:{news_id}"),
             ],
         ]
     )
@@ -137,12 +140,28 @@ async def on_news_format_callback(callback: CallbackQuery):
     _, format_name, news_id_str = callback.data.split(":")
     news_id = int(news_id_str)
 
-    await callback.answer(f"Генерирую пост из новости...")
-
     news = await get_news_by_id(news_id)
     if not news:
         await callback.message.answer("❌ Новость не найдена.")
         return
+
+    # Video script generation
+    if format_name == "video":
+        await callback.answer("🎬 Генерирую видео-скрипт...")
+        try:
+            script = await generate_video_script(
+                title=news["title"],
+                summary=news["summary"],
+                source=news["source"],
+            )
+            await log_activity("video_script", f"news:video", f"news_id={news_id}")
+            await callback.message.answer(f"🎬 ВИДЕО-СКРИПТ:\n\n{script}")
+        except Exception as e:
+            logger.error(f"Video script generation failed: {e}")
+            await callback.message.answer(f"❌ Ошибка генерации скрипта: {e}")
+        return
+
+    await callback.answer(f"Генерирую пост из новости...")
 
     text = await generate_news_post(
         title=news["title"],
