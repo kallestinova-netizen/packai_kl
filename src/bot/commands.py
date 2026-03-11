@@ -14,6 +14,7 @@ from src.bot.callbacks import (
 )
 from src.modules.content_generator import generate_post, classify_voice_message, edit_post
 from src.modules.transcriber import transcribe_voice
+from src.modules.perplexity_news import fetch_news_via_perplexity
 from src.modules.news_parser import parse_all_feeds
 from src.db.queries import (
     get_todays_news,
@@ -30,6 +31,7 @@ from src.db.queries import (
     log_activity,
     save_config_change,
     get_last_config_change,
+    save_news,
 )
 from src.config import load_prompt, load_json_config, load_topic_bank, save_topic_bank, CONFIG_DIR, DATA_DIR
 
@@ -62,8 +64,19 @@ async def cmd_morning(message: Message):
     # News
     news = await get_todays_news(limit=3)
     if not news:
-        # Try parsing if no news today
-        await parse_all_feeds()
+        # Try Perplexity first, fallback to RSS
+        results = await fetch_news_via_perplexity()
+        if results:
+            for item in results:
+                await save_news(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    source=item.get("source", "Perplexity"),
+                    summary=item.get("summary", ""),
+                    score=item.get("score", 50),
+                )
+        else:
+            await parse_all_feeds()
         news = await get_todays_news(limit=3)
 
     news_text = "📰 НОВОСТИ ДНЯ:\n\n"
