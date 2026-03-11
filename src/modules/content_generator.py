@@ -82,6 +82,35 @@ async def regenerate_post(topic: str, format_name: str, rubric: str) -> str:
     return await generate_post(topic=topic, format_name=format_name, rubric=rubric)
 
 
+async def generate_video_script(title: str, summary: str, source: str) -> str:
+    """Generate a video script based on a news item."""
+    system_prompt = load_prompt("system_base.txt")
+    video_prompt = load_prompt("video_script.txt")
+    profile = load_profile()
+
+    profile_context = (
+        f"Профиль: {profile['name']}, {profile['role']}, {profile['company']}\n"
+        f"Tagline: {profile['tagline']}\n"
+    )
+
+    user_message = (
+        f"{video_prompt}\n\n"
+        f"НОВОСТЬ:\n"
+        f"Заголовок: {title}\n"
+        f"Источник: {source}\n"
+        f"Суть: {summary}\n"
+    )
+
+    response = await _get_client().messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2000,
+        system=f"{system_prompt}\n\n{profile_context}",
+        messages=[{"role": "user", "content": user_message}],
+    )
+
+    return clean_markdown(response.content[0].text)
+
+
 async def edit_post(original_text: str, edit_instructions: str, format_name: str) -> str:
     system_prompt = load_prompt("system_base.txt")
     format_prompt = load_prompt(FORMAT_PROMPTS.get(format_name, "linkedin.txt"))
