@@ -13,6 +13,7 @@ from src.scheduler.jobs import (
     job_publish_reminder,
     job_evening_summary,
     job_daily_backup,
+    job_trend_discover,
 )
 
 logger = logging.getLogger(__name__)
@@ -101,5 +102,17 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
             args=[bot], id="daily_backup", replace_existing=True,
         )
         logger.info(f"Scheduled daily_backup at {jobs['daily_backup']} {tz}")
+
+    # Trend discover — daily
+    if "trend_discover" in jobs:
+        h, m = jobs["trend_discover"].split(":")
+        scheduler.add_job(
+            job_trend_discover, CronTrigger(hour=int(h), minute=int(m), timezone=tz),
+            args=[bot], id="trend_discover", replace_existing=True,
+        )
+        logger.info(f"Scheduled trend_discover at {jobs['trend_discover']} {tz}")
+
+    # Store scheduler reference on bot for retry scheduling
+    bot._scheduler = scheduler
 
     return scheduler

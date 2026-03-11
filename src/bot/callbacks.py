@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import FSInputFile
 
 from src.modules.content_generator import generate_post, generate_news_post, generate_video_script, edit_post
+from src.modules.trend_researcher import research_trend
 from src.modules.image_generator import generate_post_image
 from src.db.queries import (
     get_content_by_id,
@@ -197,18 +198,27 @@ async def on_news_format_callback(callback: CallbackQuery):
 
 # --- Trend callbacks ---
 
+def _extract_post_idea(msg_text: str) -> str:
+    """Extract post idea from trend message text."""
+    if "ИДЕЯ ДЛЯ ПОСТА:" in msg_text:
+        after = msg_text.split("ИДЕЯ ДЛЯ ПОСТА:")[1]
+        # Cut at next section or end
+        for sep in ["\n\nИсточники:", "\n\nЕщё 2"]:
+            if sep in after:
+                after = after.split(sep)[0]
+        return after.strip()
+    # Fallback: topic from first line
+    first_line = msg_text.split("\n")[0]
+    for prefix in ["ТРЕНД:", "ЗАРОЖДАЮЩИЙСЯ ТРЕНД"]:
+        first_line = first_line.replace(prefix, "")
+    return first_line.strip()
+
+
 @router.callback_query(F.data.startswith("trend:"))
 async def on_trend_callback(callback: CallbackQuery):
     _, action = callback.data.split(":")
-
-    # Extract post idea from the message text (after "ИДЕЯ ДЛЯ ПОСТА:")
     msg_text = callback.message.text or ""
-    post_idea = ""
-    if "ИДЕЯ ДЛЯ ПОСТА:" in msg_text:
-        post_idea = msg_text.split("ИДЕЯ ДЛЯ ПОСТА:")[1].split("\n\nИсточники:")[0].strip()
-    if not post_idea:
-        # Fallback: use the topic from the first line
-        post_idea = msg_text.split("\n")[0].replace("ТРЕНД:", "").strip()
+    post_idea = _extract_post_idea(msg_text)
 
     if action == "post":
         await callback.answer("📝 Генерирую пост...")
@@ -245,6 +255,53 @@ async def on_trend_callback(callback: CallbackQuery):
         except Exception as e:
             logger.error(f"Trend video script failed: {e}")
             await callback.message.answer(f"❌ Ошибка генерации скрипта: {e}")
+
+
+@router.callback_query(F.data.startswith("trenddig:"))
+async def on_trend_investigate_callback(callback: CallbackQuery):
+    """Handle 'Investigate #2/#3' buttons — deep research via last30days."""
+    topic = callback.data.split(":", 1)[1]
+    await callback.answer(f"🔍 Исследую: {topic}...")
+
+    result = await research_trend(topic)
+    if result is None:
+        await callback.message.answer("❌ Исследование недоступно. last30days не смог получить данные.")
+        return
+
+    stats = (
+        f"Reddit {result.get('reddit_count', 0)} тредов "
+        f"({result.get('reddit_upvotes', 0)} апвоутов) | "
+        f"X {result.get('x_count', 0)} постов "
+        f"({result.get('x_likes', 0)} лайков) | "
+        f"YouTube {result.get('youtube_count', 0)} видео"
+    )
+
+    insights = "\n".join(f"  -> {ins}" for ins in result.get("key_insights", []))
+
+    top_reddit = result.get("top_reddit", {})
+    top_x = result.get("top_x", {})
+    top_youtube = result.get("top_youtube", {})
+
+    top_text = ""
+    if top_reddit:
+        top_text += f"Reddit: {top_reddit.get('title', '—')} ({top_reddit.get('upvotes', 0)} апвоутов)\n"
+    if top_x:
+        top_text += f"X: {top_x.get('text', '—')[:100]} ({top_x.get('likes', 0)} лайков)\n"
+    if top_youtube:
+        top_text += f"YouTube: {top_youtube.get('title', '—')} ({top_youtube.get('views', 0)} просмотров)\n"
+
+    text = (
+        f"ТРЕНД: {topic}\n\n"
+        f"{result.get('summary', '')}\n\n"
+        f"{stats}\n\n"
+        f"КЛЮЧЕВЫЕ НАХОДКИ:\n{insights}\n\n"
+    )
+    if top_text:
+        text += f"ТОП ОБСУЖДЕНИЯ:\n{top_text}\n"
+    text += f"ИДЕЯ ДЛЯ ПОСТА:\n{result.get('post_idea', '—')}"
+
+    keyboard = get_trend_keyboard(result.get("post_idea", topic))
+    await callback.message.answer(text, reply_markup=keyboard)
 
 
 # --- Action callbacks ---
