@@ -189,7 +189,7 @@ async def on_action_callback(callback: CallbackQuery, state: FSMContext):
         await state.update_data(edit_content_id=content_id)
         await callback.answer()
         await callback.message.answer(
-            "✏️ Напиши, что нужно изменить в посте. Я перепишу с учётом твоих правок."
+            "✏️ Напиши или отправь голосовое — что нужно изменить в посте. Я перепишу с учётом твоих правок."
         )
 
     elif action == "regen":

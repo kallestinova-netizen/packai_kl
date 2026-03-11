@@ -315,6 +315,54 @@ async def _handle_voice_content(message: Message, text: str):
 
 # --- Text message handler (no command) ---
 
+@router.message(EditStates.waiting_for_edit, F.voice)
+async def handle_edit_voice(message: Message, state: FSMContext):
+    """Handle voice edit instructions: transcribe then apply as edit."""
+    data = await state.get_data()
+    content_id = data.get("edit_content_id")
+    await state.clear()
+
+    if not content_id:
+        await message.answer("❌ Ошибка: не найден пост для редактирования.")
+        return
+
+    content = await get_content_by_id(content_id)
+    if not content:
+        await message.answer("❌ Контент не найден.")
+        return
+
+    await message.answer("🎤 Распознаю голосовое сообщение...")
+
+    bot = message.bot
+    file = await bot.get_file(message.voice.file_id)
+    file_bytes = await bot.download_file(file.file_path)
+    audio_data = file_bytes.read()
+
+    transcript = await transcribe_voice(audio_data)
+    await message.answer(f"📝 Распознано: {transcript}\n\n⏳ Редактирую пост...")
+
+    new_text = await edit_post(
+        original_text=content["text"],
+        edit_instructions=transcript,
+        format_name=content["format"] or "linkedin",
+    )
+
+    new_id = await save_generated_content(
+        source_type="edit",
+        source_id=content_id,
+        rubric=content["rubric"] or "situational",
+        format_name=content["format"] or "linkedin",
+        text=new_text,
+    )
+
+    await log_activity("edit", "act:edit_voice", f"content_id={content_id} -> {new_id}")
+    keyboard = get_format_keyboard(new_id)
+    await message.answer(
+        f"✏️ Отредактированная версия:\n\n{new_text}",
+        reply_markup=keyboard,
+    )
+
+
 @router.message(EditStates.waiting_for_edit)
 async def handle_edit_text(message: Message, state: FSMContext):
     data = await state.get_data()
