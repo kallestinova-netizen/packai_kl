@@ -70,6 +70,19 @@ def get_news_keyboard(news_id: int) -> InlineKeyboardMarkup:
     )
 
 
+def get_trend_keyboard(post_idea: str) -> InlineKeyboardMarkup:
+    # Telegram callback_data limit is 64 bytes, so we use a marker
+    # and extract the post idea from the message text in the handler
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📝 Создать пост", callback_data="trend:post"),
+                InlineKeyboardButton(text="🎬 Скрипт", callback_data="trend:video"),
+            ],
+        ]
+    )
+
+
 def get_config_confirm_keyboard(change_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -180,6 +193,58 @@ async def on_news_format_callback(callback: CallbackQuery):
 
     keyboard = get_format_keyboard(content_id)
     await callback.message.answer(text, reply_markup=keyboard)
+
+
+# --- Trend callbacks ---
+
+@router.callback_query(F.data.startswith("trend:"))
+async def on_trend_callback(callback: CallbackQuery):
+    _, action = callback.data.split(":")
+
+    # Extract post idea from the message text (after "ИДЕЯ ДЛЯ ПОСТА:")
+    msg_text = callback.message.text or ""
+    post_idea = ""
+    if "ИДЕЯ ДЛЯ ПОСТА:" in msg_text:
+        post_idea = msg_text.split("ИДЕЯ ДЛЯ ПОСТА:")[1].split("\n\nИсточники:")[0].strip()
+    if not post_idea:
+        # Fallback: use the topic from the first line
+        post_idea = msg_text.split("\n")[0].replace("ТРЕНД:", "").strip()
+
+    if action == "post":
+        await callback.answer("📝 Генерирую пост...")
+        try:
+            text = await generate_post(
+                topic=post_idea,
+                format_name="linkedin",
+                rubric="situational",
+            )
+            content_id = await save_generated_content(
+                source_type="trend",
+                source_id=0,
+                rubric="situational",
+                format_name="linkedin",
+                text=text,
+            )
+            await log_activity("trend_post", "trend:post", f"content_id={content_id}")
+            keyboard = get_format_keyboard(content_id)
+            await callback.message.answer(text, reply_markup=keyboard)
+        except Exception as e:
+            logger.error(f"Trend post generation failed: {e}")
+            await callback.message.answer(f"❌ Ошибка генерации поста: {e}")
+
+    elif action == "video":
+        await callback.answer("🎬 Генерирую видео-скрипт...")
+        try:
+            script = await generate_video_script(
+                title=post_idea,
+                summary=msg_text[:500],
+                source="Trend Research",
+            )
+            await log_activity("trend_video", "trend:video")
+            await callback.message.answer(f"🎬 ВИДЕО-СКРИПТ:\n\n{script}")
+        except Exception as e:
+            logger.error(f"Trend video script failed: {e}")
+            await callback.message.answer(f"❌ Ошибка генерации скрипта: {e}")
 
 
 # --- Action callbacks ---

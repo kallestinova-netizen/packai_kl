@@ -10,11 +10,13 @@ from src.bot.callbacks import (
     EditStates,
     get_format_keyboard,
     get_news_keyboard,
+    get_trend_keyboard,
     get_config_confirm_keyboard,
 )
 from src.modules.content_generator import generate_post, classify_voice_message, edit_post
 from src.modules.transcriber import transcribe_voice
 from src.modules.perplexity_news import fetch_news_via_perplexity
+from src.modules.trend_researcher import research_trend
 from src.modules.news_parser import parse_all_feeds
 from src.db.queries import (
     get_todays_news,
@@ -150,10 +152,43 @@ async def cmd_create(message: Message):
 @router.message(Command("trend"))
 async def cmd_trend(message: Message):
     await log_activity("command", "/trend")
-    await message.answer(
-        "📈 Функция трендов будет доступна в следующем обновлении.\n\n"
-        "В Неделе 3 здесь появится анализ трендов за последние 30 дней."
+
+    topic = message.text.replace("/trend", "", 1).strip()
+    if not topic:
+        await message.answer(
+            "📈 Напиши тему после команды:\n\n"
+            "/trend AI video marketing\n"
+            "/trend автоматизация контента\n"
+            "/trend нейросети для рекламы"
+        )
+        return
+
+    await message.answer(f"🔍 Исследую тренд: {topic}...")
+
+    try:
+        result = await research_trend(topic)
+    except Exception as e:
+        logger.error(f"Trend research failed: {e}")
+        await message.answer(f"❌ Ошибка исследования тренда: {e}")
+        return
+
+    insights = "\n".join(f"  -> {ins}" for ins in result.get("key_insights", []))
+    tools = "\n".join(f"  -> {t}" for t in result.get("trending_tools", []))
+    sources = ", ".join(result.get("sources", []))
+
+    text = (
+        f"ТРЕНД: {result.get('topic', topic)}\n\n"
+        f"{result.get('summary', '')}\n\n"
+        f"КЛЮЧЕВЫЕ ИНСАЙТЫ:\n{insights}\n\n"
+        f"ИНСТРУМЕНТЫ:\n{tools}\n\n"
+        f"ИДЕЯ ДЛЯ ПОСТА:\n{result.get('post_idea', '')}\n\n"
+        f"Источники: {sources}"
     )
+
+    post_idea = result.get("post_idea", topic)
+    keyboard = get_trend_keyboard(post_idea)
+
+    await message.answer(text, reply_markup=keyboard)
 
 
 @router.message(Command("stats"))
