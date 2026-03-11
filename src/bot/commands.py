@@ -156,38 +156,56 @@ async def cmd_trend(message: Message):
     topic = message.text.replace("/trend", "", 1).strip()
     if not topic:
         await message.answer(
-            "📈 Напиши тему после команды:\n\n"
-            "/trend AI video marketing\n"
+            "📈 Тренд дня придёт в 09:00.\n\n"
+            "Или напиши тему:\n"
+            "/trend AI video ads\n"
             "/trend автоматизация контента\n"
             "/trend нейросети для рекламы"
         )
         return
 
-    await message.answer(f"🔍 Исследую тренд: {topic}...")
+    await message.answer(f"🔍 Исследую тренд через last30days: {topic}...")
 
-    try:
-        result = await research_trend(topic)
-    except Exception as e:
-        logger.error(f"Trend research failed: {e}")
-        await message.answer(f"❌ Ошибка исследования тренда: {e}")
+    result = await research_trend(topic)
+    if result is None:
+        await message.answer("❌ Исследование недоступно. last30days не смог получить данные.")
         return
 
-    insights = "\n".join(f"  -> {ins}" for ins in result.get("key_insights", []))
-    tools = "\n".join(f"  -> {t}" for t in result.get("trending_tools", []))
-    sources = ", ".join(result.get("sources", []))
-
-    text = (
-        f"ТРЕНД: {result.get('topic', topic)}\n\n"
-        f"{result.get('summary', '')}\n\n"
-        f"КЛЮЧЕВЫЕ ИНСАЙТЫ:\n{insights}\n\n"
-        f"ИНСТРУМЕНТЫ:\n{tools}\n\n"
-        f"ИДЕЯ ДЛЯ ПОСТА:\n{result.get('post_idea', '')}\n\n"
-        f"Источники: {sources}"
+    # Stats
+    stats = (
+        f"Reddit {result.get('reddit_count', 0)} тредов "
+        f"({result.get('reddit_upvotes', 0)} апвоутов) | "
+        f"X {result.get('x_count', 0)} постов "
+        f"({result.get('x_likes', 0)} лайков) | "
+        f"YouTube {result.get('youtube_count', 0)} видео"
     )
 
-    post_idea = result.get("post_idea", topic)
-    keyboard = get_trend_keyboard(post_idea)
+    insights = "\n".join(f"  -> {ins}" for ins in result.get("key_insights", []))
 
+    # Top discussions
+    top_reddit = result.get("top_reddit", {})
+    top_x = result.get("top_x", {})
+    top_youtube = result.get("top_youtube", {})
+
+    top_text = ""
+    if top_reddit:
+        top_text += f"Reddit: {top_reddit.get('title', '—')} ({top_reddit.get('upvotes', 0)} апвоутов)\n"
+    if top_x:
+        top_text += f"X: {top_x.get('text', '—')[:100]} ({top_x.get('likes', 0)} лайков)\n"
+    if top_youtube:
+        top_text += f"YouTube: {top_youtube.get('title', '—')} ({top_youtube.get('views', 0)} просмотров)\n"
+
+    text = (
+        f"ТРЕНД: {topic}\n\n"
+        f"{result.get('summary', '')}\n\n"
+        f"{stats}\n\n"
+        f"КЛЮЧЕВЫЕ НАХОДКИ:\n{insights}\n\n"
+    )
+    if top_text:
+        text += f"ТОП ОБСУЖДЕНИЯ:\n{top_text}\n"
+    text += f"ИДЕЯ ДЛЯ ПОСТА:\n{result.get('post_idea', '—')}"
+
+    keyboard = get_trend_keyboard(result.get("post_idea", topic))
     await message.answer(text, reply_markup=keyboard)
 
 
