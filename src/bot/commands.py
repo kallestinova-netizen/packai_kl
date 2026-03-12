@@ -88,7 +88,7 @@ async def cmd_morning(message: Message):
             news_text += f"   📌 {item['summary'][:200]}\n"
             news_text += f"   🔗 {item['source']}\n\n"
             source_line = f"🔗 Источник: {item['source']}"
-            if item.get("url"):
+            if item["url"]:
                 source_line += f"\n{item['url']}"
             await message.answer(
                 f"📰 {i}. {item['title']}\n\n{item['summary']}\n\n{source_line}",

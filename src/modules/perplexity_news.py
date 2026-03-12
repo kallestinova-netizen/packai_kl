@@ -17,38 +17,10 @@ async def fetch_news_via_perplexity() -> list[dict]:
         logger.warning("PERPLEXITY_API_KEY not set, skipping Perplexity news fetch")
         return []
 
-    prompt = """Ты — новостной редактор для маркетолога-практика, специалиста по AI-автоматизации маркетинга.
+    from datetime import date
+    today = date.today().isoformat()
 
-Найди 5 новостей за последние 48 часов СТРОГО по критериям:
-
-ОБЯЗАТЕЛЬНО (каждая новость должна соответствовать минимум 2):
-1. Конкретные цифры: рост выручки X%, экономия $X, конверсия +X%, пользователей X тысяч
-2. Реальный кейс компании: кто внедрил AI в маркетинг/продажи и какой измеримый результат
-3. Запуск AI-инструмента для маркетинга/контента/продаж С ЦЕНОЙ
-4. Обновление рекламных платформ (Meta Ads, Google Ads, TikTok Ads, VK Ads, Яндекс Директ) с влиянием на рекламодателей
-5. Creator economy: монетизация AI-аватаров, автоматизация контента, цифровые двойники С ЦИФРАМИ сделки
-6. AI-стартап из Y Combinator в сфере маркетинга/продаж с метриками роста
-
-НЕ ПОДХОДИТ (отклоняй сразу):
-- Общие новости про AI без маркетингового применения (типа Microsoft объединился с Anthropic)
-- Новости без конкретных цифр и метрик
-- Технические обновления моделей без бизнес-импакта
-- Мнения и прогнозы без данных
-- Новости про безопасность AI, этику, регулирование
-
-ПРИМЕРЫ ИДЕАЛЬНЫХ НОВОСТЕЙ:
-- Starbucks внедрил AI-персонализацию: средний чек вырос на 34%
-- TikTok-инфлюенсер сдал цифрового двойника в аренду за $900M
-- Meta выкатила AI-генератор рекламы: первые тесты показали 3x рост конверсий
-- HubSpot добавил AI-ассистента: пользователи создают контент на 67% быстрее
-- YC стартап Jasper AI достиг $100M ARR за 18 месяцев
-
-Верни ТОЛЬКО JSON массив без markdown:
-[{"title": "заголовок на русском", "summary": "2-3 предложения с конкретными цифрами на русском", "source": "название источника", "url": "ссылка", "score": 50-100, "video_potential": "высокий/средний/низкий"}]
-
-Если за 48 часов нет новостей соответствующих критериям — верни пустой массив []. Лучше 0 новостей чем мусор.
-
-ОБЯЗАТЕЛЬНО верни ровно 5 новостей. Если по строгим критериям нашлось меньше 5 — добавь интересные новости про AI-стартапы, новые инструменты или тренды digital-маркетинга. Всегда 5."""
+    prompt = f"Today is {today}. Find 5 fresh news from last 3 days about AI in marketing and business. Sources: TechCrunch, The Verge, Marketing Brew, Search Engine Land, HubSpot, Adweek, Product Hunt, Social Media Today, Martech.org. Topics: new AI marketing tools with pricing, companies using AI with metrics and ROI, ad platform updates Meta Google TikTok VK, AI startups with funding, creator economy AI avatars automation. Do NOT include: news older than 3 days, ethics or safety AI news, technical model updates without business impact. Return ONLY a JSON array no text before or after. Always exactly 5 items. Format: " + '[{"title": "title in Russian", "summary": "2-3 sentences in Russian", "source": "source", "url": "link", "score": 70, "video_potential": "medium"}]'
 
     headers = {
         "Authorization": f"Bearer {api_key}",
