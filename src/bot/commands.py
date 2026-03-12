@@ -16,7 +16,7 @@ from src.bot.callbacks import (
 from src.modules.content_generator import generate_post, classify_voice_message, edit_post
 from src.modules.transcriber import transcribe_voice
 from src.modules.perplexity_news import fetch_news_via_perplexity
-from src.modules.trend_researcher import research_trend
+from src.modules.trend_researcher import research_trend, discover_emerging_trends_formatted
 from src.modules.news_parser import parse_all_feeds
 from src.db.queries import (
     get_todays_news,
@@ -88,7 +88,7 @@ async def cmd_morning(message: Message):
             news_text += f"   📌 {item['summary'][:200]}\n"
             news_text += f"   🔗 {item['source']}\n\n"
             source_line = f"🔗 Источник: {item['source']}"
-            if item.get("url"):
+            if item["url"]:
                 source_line += f"\n{item['url']}"
             await message.answer(
                 f"📰 {i}. {item['title']}\n\n{item['summary']}\n\n{source_line}",
@@ -152,61 +152,53 @@ async def cmd_create(message: Message):
 @router.message(Command("trend"))
 async def cmd_trend(message: Message):
     await log_activity("command", "/trend")
+    topic = message.text.replace("/trend", "", 1).strip() if message.text else ""
 
-    topic = message.text.replace("/trend", "", 1).strip()
-    if not topic:
-        await message.answer(
-            "📈 Тренд дня придёт в 09:00.\n\n"
-            "Или напиши тему:\n"
-            "/trend AI video ads\n"
-            "/trend автоматизация контента\n"
-            "/trend нейросети для рекламы"
+    if topic:
+        await message.answer(f"🔍 Исследую тему: {topic}...")
+        result = await research_trend(topic)
+        if result is None:
+            await message.answer("❌ Не удалось получить данные. Попробуй позже.")
+            return
+
+        stats = (
+            f"Reddit {result.get('reddit_count', 0)} тредов "
+            f"({result.get('reddit_upvotes', 0)} апвоутов) | "
+            f"X {result.get('x_count', 0)} постов "
+            f"({result.get('x_likes', 0)} лайков) | "
+            f"YouTube {result.get('youtube_count', 0)} видео"
         )
-        return
+        insights = "\n".join(f"  -> {ins}" for ins in result.get("key_insights", []))
+        top_reddit = result.get("top_reddit", {})
+        top_x = result.get("top_x", {})
+        top_youtube = result.get("top_youtube", {})
+        top_text = ""
+        if top_reddit:
+            top_text += f"Reddit: {top_reddit.get('title', '—')} ({top_reddit.get('upvotes', 0)} апвоутов)\n"
+        if top_x:
+            top_text += f"X: {top_x.get('text', '—')[:100]} ({top_x.get('likes', 0)} лайков)\n"
+        if top_youtube:
+            top_text += f"YouTube: {top_youtube.get('title', '—')} ({top_youtube.get('views', 0)} просмотров)\n"
 
-    await message.answer(f"🔍 Исследую тренд через last30days: {topic}...")
+        text = (
+            f"ТРЕНД: {topic}\n\n"
+            f"{result.get('summary', '')}\n\n"
+            f"{stats}\n\n"
+            f"КЛЮЧЕВЫЕ НАХОДКИ:\n{insights}\n\n"
+        )
+        if top_text:
+            text += f"ТОП ОБСУЖДЕНИЯ:\n{top_text}\n"
+        text += f"ИДЕЯ ДЛЯ ПОСТА:\n{result.get('post_idea', '—')}"
 
-    result = await research_trend(topic)
-    if result is None:
-        await message.answer("❌ Исследование недоступно. last30days не смог получить данные.")
-        return
-
-    # Stats
-    stats = (
-        f"Reddit {result.get('reddit_count', 0)} тредов "
-        f"({result.get('reddit_upvotes', 0)} апвоутов) | "
-        f"X {result.get('x_count', 0)} постов "
-        f"({result.get('x_likes', 0)} лайков) | "
-        f"YouTube {result.get('youtube_count', 0)} видео"
-    )
-
-    insights = "\n".join(f"  -> {ins}" for ins in result.get("key_insights", []))
-
-    # Top discussions
-    top_reddit = result.get("top_reddit", {})
-    top_x = result.get("top_x", {})
-    top_youtube = result.get("top_youtube", {})
-
-    top_text = ""
-    if top_reddit:
-        top_text += f"Reddit: {top_reddit.get('title', '—')} ({top_reddit.get('upvotes', 0)} апвоутов)\n"
-    if top_x:
-        top_text += f"X: {top_x.get('text', '—')[:100]} ({top_x.get('likes', 0)} лайков)\n"
-    if top_youtube:
-        top_text += f"YouTube: {top_youtube.get('title', '—')} ({top_youtube.get('views', 0)} просмотров)\n"
-
-    text = (
-        f"ТРЕНД: {topic}\n\n"
-        f"{result.get('summary', '')}\n\n"
-        f"{stats}\n\n"
-        f"КЛЮЧЕВЫЕ НАХОДКИ:\n{insights}\n\n"
-    )
-    if top_text:
-        text += f"ТОП ОБСУЖДЕНИЯ:\n{top_text}\n"
-    text += f"ИДЕЯ ДЛЯ ПОСТА:\n{result.get('post_idea', '—')}"
-
-    keyboard = get_trend_keyboard(result.get("post_idea", topic))
-    await message.answer(text, reply_markup=keyboard)
+        keyboard = get_trend_keyboard(result.get("post_idea", topic))
+        await message.answer(text, reply_markup=keyboard)
+    else:
+        await message.answer("🔍 Сканирую Reddit, X, YouTube, Hacker News...")
+        result = await discover_emerging_trends_formatted()
+        if result:
+            await message.answer(result["text"], reply_markup=result.get("keyboard"))
+        else:
+            await message.answer("Не удалось получить данные. Попробуй позже.")
 
 
 @router.message(Command("stats"))
