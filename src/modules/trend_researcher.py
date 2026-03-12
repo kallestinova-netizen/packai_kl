@@ -64,6 +64,42 @@ async def discover_emerging_trends() -> list[dict]:
             return json.loads(text)
 
 
+async def discover_emerging_trends_formatted() -> dict | None:
+    """Discover trends and format as a ready-to-send message."""
+    try:
+        trends = await discover_emerging_trends()
+    except Exception as e:
+        logger.error(f"discover_emerging_trends failed: {e}")
+        return None
+
+    if not trends:
+        return None
+
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+    text = "ЗАРОЖДАЮЩИЕСЯ ТРЕНДЫ\n\n"
+    for i, t in enumerate(trends, 1):
+        text += (
+            f"{i}. {t.get('title_ru', t.get('topic', ''))}\n"
+            f"   Сигнал: {t.get('signal', '')}\n"
+            f"   {t.get('why_emerging', '')}\n\n"
+        )
+
+    buttons = []
+    for i, t in enumerate(trends[:3], 1):
+        short_topic = t.get("topic", "")[:30]
+        buttons.append(
+            InlineKeyboardButton(
+                text=f"🔍 Исследовать #{i}",
+                callback_data=f"trenddig:{short_topic}",
+            )
+        )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons]) if buttons else None
+
+    return {"text": text, "keyboard": keyboard}
+
+
 async def research_trend(topic: str) -> dict | None:
     """Deep research a topic via last30days. Returns None on failure (no fallback)."""
 
