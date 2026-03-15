@@ -1,262 +1,124 @@
-import base64
-import io
+import os
+import json
 import logging
+import aiohttp
 from datetime import datetime
-from pathlib import Path
-
-from openai import AsyncOpenAI
-from PIL import Image, ImageDraw, ImageFont
-
-from src.config import OPENAI_API_KEY, load_brand, load_prompt, BASE_DIR
 
 logger = logging.getLogger(__name__)
 
-IMAGES_DIR = BASE_DIR / "data" / "images"
-FONTS_DIR = BASE_DIR / "assets" / "fonts"
+KIE_API_URL = "https://api.kie.ai/api/v1/nano-banana"
+KIE_PRO_URL = "https://api.kie.ai/api/v1/nano-banana-pro"
 
-# DALL-E 3 size mapping per image format
-DALLE_SIZES = {
-    "linkedin": "1792x1024",   # landscape
-    "telegram": "1792x1024",   # landscape
-    "threads": "1024x1024",    # square
-    "stories": "1024x1792",    # portrait
-}
-
-# Format specs: output size + title max chars
 FORMATS = {
-    "linkedin": {"width": 1200, "height": 627, "title_max_chars": 60},
-    "telegram": {"width": 1280, "height": 720, "title_max_chars": 50},
-    "threads": {"width": 1080, "height": 1080, "title_max_chars": 45},
-    "stories": {"width": 1080, "height": 1920, "title_max_chars": 40},
+    "linkedin": {"aspect": "16:9", "resolution": "1K"},
+    "telegram": {"aspect": "16:9", "resolution": "1K"},
+    "threads": {"aspect": "1:1", "resolution": "1K"},
+    "stories": {"aspect": "9:16", "resolution": "1K"},
 }
-
-PADDING = 60
-
-_client = None
-
-
-def _get_client() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-    return _client
-
-
-def _load_font(font_name: str, size: int) -> ImageFont.FreeTypeFont:
-    """Load font from assets/fonts/, fallback to default."""
-    font_path = FONTS_DIR / font_name
-    try:
-        return ImageFont.truetype(str(font_path), size)
-    except (OSError, IOError):
-        logger.warning(f"Font {font_name} not found at {font_path}, using default")
-        try:
-            return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
-        except (OSError, IOError):
-            return ImageFont.load_default()
-
-
-def _extract_title(text: str, max_chars: int = 60, max_words: int = 6) -> str:
-    """Extract a short title (max 5-6 words) from the post text."""
-    lines = text.strip().split("\n")
-    candidate = ""
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and len(stripped) > 10:
-            candidate = stripped
-            break
-    if not candidate:
-        candidate = lines[0].strip() if lines else "PACK AI"
-
-    # Limit to max_words significant words
-    words = candidate.split()
-    if len(words) > max_words:
-        candidate = " ".join(words[:max_words])
-
-    # Also enforce max_chars limit
-    if len(candidate) > max_chars:
-        cut = candidate[:max_chars].rsplit(" ", 1)[0]
-        candidate = cut if len(cut) > 10 else candidate[:max_chars]
-
-    return candidate
-
-
-def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
-    """Wrap text to fit within max_width pixels. Max 3 lines."""
-    words = text.split()
-    lines = []
-    current_line = ""
-
-    for word in words:
-        test_line = f"{current_line} {word}".strip()
-        bbox = font.getbbox(test_line)
-        text_width = bbox[2] - bbox[0]
-        if text_width <= max_width:
-            current_line = test_line
-        else:
-            if current_line:
-                lines.append(current_line)
-            current_line = word
-
-    if current_line:
-        lines.append(current_line)
-
-    return lines[:2]  # Max 2 lines
-
-
-def _overlay_branding(
-    bg_image: Image.Image,
-    title: str,
-    image_format: str,
-) -> Image.Image:
-    """Apply brand overlay: PACK AI tag, title text, watermark."""
-    brand = load_brand()
-    fmt = FORMATS[image_format]
-    width, height = fmt["width"], fmt["height"]
-
-    # Resize background to target
-    img = bg_image.resize((width, height), Image.LANCZOS).convert("RGBA")
-    draw = ImageDraw.Draw(img)
-
-    # Color values
-    accent_green = brand["colors"]["accent_green"]
-    dark_text = brand["colors"]["dark_text"]
-
-    # --- PACK AI tag (green pill, top-left) ---
-    tag_font = _load_font("Manrope-Bold.ttf", 20)
-    tag_text = "PACK AI"
-    tag_bbox = tag_font.getbbox(tag_text)
-    tag_w = tag_bbox[2] - tag_bbox[0] + 32
-    tag_h = tag_bbox[3] - tag_bbox[1] + 16
-    tag_x, tag_y = PADDING, PADDING
-
-    draw.rounded_rectangle(
-        [tag_x, tag_y, tag_x + tag_w, tag_y + tag_h],
-        radius=20,
-        fill=accent_green,
-    )
-    draw.text(
-        (tag_x + 16, tag_y + 8),
-        tag_text,
-        fill=dark_text,
-        font=tag_font,
-    )
-
-    # --- Title text (bottom third) ---
-    heading_sizes = brand["typography"]["heading"]["sizes"]
-    size_key = {
-        "linkedin": "linkedin_1200x627",
-        "telegram": "telegram_1280x720",
-        "threads": "instagram_1080x1080",
-        "stories": "instagram_stories_1080x1920",
-    }.get(image_format, "linkedin_1200x627")
-
-    base_font_size = heading_sizes.get(size_key, 48)
-    title_font_size = int(base_font_size * 1.2)  # +20% for readability
-    title_font = _load_font("Unbounded-Bold.ttf", title_font_size)
-
-    max_text_width = width - PADDING * 2
-    wrapped = _wrap_text(title, title_font, max_text_width)
-
-    # Line height = font_size * 1.3
-    line_height = int(title_font_size * 1.3)
-    text_block_height = len(wrapped) * line_height
-
-    # Position: bottom third, with padding from bottom
-    y_start = height - text_block_height - PADDING - 20
-
-    # Semi-transparent background behind title for readability
-    if wrapped:
-        bg_rect_y1 = y_start - 20
-        bg_rect_y2 = y_start + text_block_height + 20
-        bg_rect_x1 = PADDING - 20
-        bg_rect_x2 = width - PADDING + 20
-
-        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        overlay_draw = ImageDraw.Draw(overlay)
-        overlay_draw.rounded_rectangle(
-            [bg_rect_x1, bg_rect_y1, bg_rect_x2, bg_rect_y2],
-            radius=16,
-            fill=(255, 255, 255, 217),  # white plate, 85% opacity
-        )
-        img = Image.alpha_composite(img, overlay)
-        draw = ImageDraw.Draw(img)
-
-    for i, line in enumerate(wrapped):
-        y = y_start + i * line_height
-        draw.text((PADDING, y), line, fill="#1A1A1A", font=title_font)
-
-    # --- Watermark: packai.io (bottom-right, 40% opacity) ---
-    watermark_font = _load_font("Manrope-Regular.ttf", 16)
-    watermark_text = "packai.io"
-
-    wm_bbox = watermark_font.getbbox(watermark_text)
-    wm_w = wm_bbox[2] - wm_bbox[0]
-    wm_h = wm_bbox[3] - wm_bbox[1]
-    wm_x = width - PADDING - wm_w
-    wm_y = height - PADDING
-
-    # 40% opacity: alpha = 102 out of 255
-    draw.text((wm_x, wm_y), watermark_text, fill=(26, 26, 26, 102), font=watermark_font)
-
-    # Convert to RGB for PNG saving
-    final = Image.new("RGB", img.size, (245, 245, 240))
-    final.paste(img, mask=img.split()[3])
-    return final
-
-
-async def _generate_background(topic: str, image_format: str) -> Image.Image:
-    """Generate background image using DALL-E 3."""
-    try:
-        image_prompt_template = load_prompt("image_prompt.txt")
-    except FileNotFoundError:
-        image_prompt_template = (
-            "Создай фоновое изображение для поста в социальных сетях. "
-            "Минималистичный стиль, тёплый светлый фон, лаймово-зелёные акценты. "
-            "БЕЗ текста. Тема: {topic}"
-        )
-
-    prompt = image_prompt_template.replace("{topic}", topic[:200])
-    dalle_size = DALLE_SIZES.get(image_format, "1792x1024")
-
-    response = await _get_client().images.generate(
-        model="dall-e-3",
-        prompt=prompt,
-        size=dalle_size,
-        quality="standard",
-        n=1,
-        response_format="b64_json",
-    )
-
-    image_data = base64.b64decode(response.data[0].b64_json)
-    return Image.open(io.BytesIO(image_data))
 
 
 async def generate_post_image(
-    content_id: int,
     post_text: str,
-    image_format: str = "telegram",
-    post_number: int = 0,
+    format_name: str = "telegram",
+    photo_url: str = None,
+    *,
+    content_id: int = 0,
+    image_format: str = None,
 ) -> str:
-    """Generate a branded image for a post. Returns file path."""
-    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    """Generate a branded image via Kie.ai Nano Banana. Returns file path or None."""
+    # Support legacy kwarg image_format -> format_name
+    if image_format and format_name == "telegram":
+        format_name = image_format
 
-    fmt = FORMATS.get(image_format, FORMATS["telegram"])
-    title = _extract_title(post_text, max_chars=fmt["title_max_chars"])
-    logger.info(f"Generating image: format={image_format}, title={title[:40]}...")
+    api_key = os.getenv("KIE_API_KEY")
+    if not api_key:
+        logger.error("KIE_API_KEY not set")
+        return None
 
-    # Generate DALL-E background
-    bg_image = await _generate_background(title, image_format)
+    # Extract short title (5-6 words)
+    title = " ".join(post_text.split("\n")[0].split()[:6])
 
-    # Apply brand overlay
-    final_image = _overlay_branding(bg_image, title, image_format)
+    fmt = FORMATS.get(format_name, FORMATS["telegram"])
 
-    # Save with naming: {date}_{post_number}_{format}.png
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    post_num = f"{post_number:02d}" if post_number else f"{content_id:02d}"
-    filename = f"{date_str}_{post_num}_{image_format}.png"
-    filepath = IMAGES_DIR / filename
+    prompt = (
+        f"Create a minimalist social media post image.\n"
+        f"Background: warm beige color #F5F5F0\n"
+        f"Accent elements: bright lime green #A8E847 geometric shapes (circles, lines)\n"
+        f"Bold text on image: '{title}' in dark color #1A1A1A, modern sans-serif font\n"
+        f"Small green tag 'PACK AI' with lime background in top left corner\n"
+        f"Small text 'packai.io' in bottom right corner\n"
+        f"Style: ultra clean, minimal, lots of white space, Apple-style design\n"
+        f"Aspect ratio: {fmt['aspect']}\n"
+        f"NO photographs of people. Abstract geometric accents only."
+    )
 
-    final_image.save(str(filepath), "PNG", optimize=True)
-    logger.info(f"Image saved: {filepath}")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
 
-    return str(filepath)
+    # If photo provided, use Nano Banana Edit to insert into branded layout
+    if photo_url:
+        payload = {
+            "prompt": (
+                f"Insert this photo into a branded social media layout. "
+                f"Background: beige #F5F5F0. Lime green #A8E847 frame around photo. "
+                f"Text '{title}' in bold dark font below. "
+                f"Tag 'PACK AI' top left. 'packai.io' bottom right. Clean minimal design."
+            ),
+            "image_urls": [photo_url],
+            "output_format": "png",
+            "image_size": fmt["aspect"],
+        }
+        url = KIE_API_URL.replace("nano-banana", "nano-banana/edit")
+    else:
+        payload = {
+            "prompt": prompt,
+            "output_format": "png",
+            "image_size": fmt["aspect"],
+        }
+        url = KIE_API_URL
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as resp:
+                if resp.status != 200:
+                    error = await resp.text()
+                    logger.error(f"Kie.ai error {resp.status}: {error[:200]}")
+                    return None
+
+                data = await resp.json()
+                image_url = None
+
+                # Parse response - Kie.ai returns image URL
+                if isinstance(data, dict):
+                    image_url = (
+                        data.get("image_url")
+                        or data.get("url")
+                        or data.get("output", {}).get("url")
+                    )
+                    if not image_url and "images" in data:
+                        images = data["images"]
+                        if images and isinstance(images, list):
+                            image_url = images[0].get("url")
+
+                if not image_url:
+                    logger.error(f"No image URL in response: {str(data)[:200]}")
+                    return None
+
+                # Download image
+                async with session.get(image_url) as img_resp:
+                    if img_resp.status == 200:
+                        img_data = await img_resp.read()
+                        os.makedirs("data/images", exist_ok=True)
+                        filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{format_name}.png"
+                        filepath = f"data/images/{filename}"
+                        with open(filepath, "wb") as f:
+                            f.write(img_data)
+                        logger.info(f"Image saved: {filepath}")
+                        return filepath
+
+                return None
+    except Exception as e:
+        logger.error(f"Image generation error: {e}")
+        return None
