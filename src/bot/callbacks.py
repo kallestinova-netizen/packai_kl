@@ -11,6 +11,7 @@ from aiogram.types import FSInputFile
 from src.modules.content_generator import generate_post, generate_news_post, generate_video_script, edit_post
 from src.modules.trend_researcher import research_trend
 from src.modules.image_generator import generate_post_image
+from src.modules.blog_publisher import generate_blog_article, publish_to_blog
 from src.db.queries import (
     get_content_by_id,
     get_news_by_id,
@@ -29,6 +30,8 @@ from src.config import load_prompt, save_prompt, load_json_config, save_json_con
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+_pending_articles: dict[int, dict] = {}
 
 
 class EditStates(StatesGroup):
@@ -111,6 +114,38 @@ async def on_format_callback(callback: CallbackQuery):
         return
 
     original_text = content["text"]
+
+    if format_name == "blog":
+        # Публикация на сайт kallestinova.ru
+        await callback.answer("Генерирую статью для сайта...")
+
+        article = await generate_blog_article(original_text)
+        if not article:
+            await callback.message.answer("Не удалось сгенерировать статью. Попробуй ещё раз.")
+            return
+
+        _pending_articles[content_id] = article
+
+        preview = (
+            f"Статья для kallestinova.ru:\n\n"
+            f"{article.get('title', 'Без заголовка')}\n\n"
+            f"{article.get('excerpt', '')}\n\n"
+            f"Тег: {article.get('tag', '')}  Время: {article.get('read_time', '5')} мин\n"
+            f"URL: {article.get('slug', '')}\n"
+            f"SEO: {article.get('meta_description', '')}"
+        )
+
+        confirm_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Опубликовать", callback_data=f"blog:publish:{content_id}"),
+                InlineKeyboardButton(text="Переписать", callback_data=f"blog:regen:{content_id}"),
+                InlineKeyboardButton(text="Отмена", callback_data=f"blog:cancel:{content_id}"),
+            ]
+        ])
+
+        await callback.message.answer(preview, reply_markup=confirm_kb)
+        return
+
     rubric = content["rubric"] or "situational"
 
     # Get post_number if content originated from content plan
@@ -302,6 +337,71 @@ async def on_trend_investigate_callback(callback: CallbackQuery):
 
     keyboard = get_trend_keyboard(result.get("post_idea", topic))
     await callback.message.answer(text, reply_markup=keyboard)
+
+
+# --- Blog publish callbacks ---
+
+@router.callback_query(F.data.startswith("blog:"))
+async def on_blog_callback(callback: CallbackQuery):
+    parts = callback.data.split(":")
+    action = parts[1]
+    content_id = int(parts[2])
+
+    if action == "publish":
+        article = _pending_articles.get(content_id)
+        if not article:
+            await callback.message.answer("Статья не найдена. Сгенерируй заново.")
+            return
+
+        await callback.answer("Публикую на сайт...")
+        url = await publish_to_blog(article)
+        _pending_articles.pop(content_id, None)
+
+        if url:
+            await log_activity("blog_publish", "blog:publish", f"content_id={content_id}, url={url}")
+            await callback.message.answer(f"Статья опубликована!\n{url}")
+        else:
+            await callback.message.answer("Не удалось опубликовать. Проверь FTP настройки в .env")
+
+    elif action == "regen":
+        _pending_articles.pop(content_id, None)
+        await callback.answer("Перегенерирую статью...")
+
+        content = await get_content_by_id(content_id)
+        if not content:
+            await callback.message.answer("Контент не найден.")
+            return
+
+        article = await generate_blog_article(content["text"])
+        if not article:
+            await callback.message.answer("Не удалось сгенерировать статью. Попробуй ещё раз.")
+            return
+
+        _pending_articles[content_id] = article
+
+        preview = (
+            f"Статья для kallestinova.ru:\n\n"
+            f"{article.get('title', 'Без заголовка')}\n\n"
+            f"{article.get('excerpt', '')}\n\n"
+            f"Тег: {article.get('tag', '')}  Время: {article.get('read_time', '5')} мин\n"
+            f"URL: {article.get('slug', '')}\n"
+            f"SEO: {article.get('meta_description', '')}"
+        )
+
+        confirm_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Опубликовать", callback_data=f"blog:publish:{content_id}"),
+                InlineKeyboardButton(text="Переписать", callback_data=f"blog:regen:{content_id}"),
+                InlineKeyboardButton(text="Отмена", callback_data=f"blog:cancel:{content_id}"),
+            ]
+        ])
+
+        await callback.message.answer(preview, reply_markup=confirm_kb)
+
+    elif action == "cancel":
+        _pending_articles.pop(content_id, None)
+        await callback.answer("Отменено")
+        await callback.message.answer("Публикация отменена.")
 
 
 # --- Action callbacks ---

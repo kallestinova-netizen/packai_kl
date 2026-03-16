@@ -24,6 +24,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # Database
 DB_PATH = os.getenv("DB_PATH", str(DATA_DIR / "bot.db"))
 
+# FTP (Beget)
+FTP_HOST = os.getenv("FTP_HOST", "kallestinova.ru")
+FTP_USER = os.getenv("FTP_USER", "")
+FTP_PASSWORD = os.getenv("FTP_PASSWORD", "")
+
 # Timezone
 TZ = os.getenv("TZ", "Asia/Novosibirsk")
 
